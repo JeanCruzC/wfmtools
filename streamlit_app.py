@@ -82,10 +82,16 @@ with tab_ex:
     ex2 = payload["exercises"]["exercise2"]
     ex3 = payload["exercises"]["exercise3"]
 
-    c1, c2 = st.columns(2)
-    with c1:
+    results = calculate_exercises(payload["exercises"])
+    r1 = results["exercise1"]
+    r2 = results["exercise2"]
+    r3 = results["exercise3"]
+
+    st.markdown("### Calculadora 1 - AHT Inbound")
+    left, right = st.columns(2)
+    with left:
         ex1_table = editable_sheet(
-            "Ejercicio 1 - Entradas",
+            "Entradas",
             [
                 {"Campo": "Horas Programadas", "Valor": float(ex1["scheduled_hours"])},
                 {"Campo": "Ausentismo (%)", "Valor": float(ex1["absenteeism"]) * 100},
@@ -102,10 +108,27 @@ with tab_ex:
         ex1["inbound_availtime"] = float(ex1_table.loc[3, "Valor"]) / 100
         ex1["nda"] = float(ex1_table.loc[4, "Valor"]) / 100
         ex1["calls"] = float(ex1_table.loc[5, "Valor"])
+    with right:
+        results = calculate_exercises(payload["exercises"])
+        r1 = results["exercise1"]
+        st.metric("Resultado AHT Inbound (seg)", n(r1["inbound_aht_sec"]))
+        st.table(
+            pd.DataFrame(
+                [
+                    {"Paso": "Horas presentes", "Resultado": n(r1["attendance_hours"])},
+                    {"Paso": "Horas productivas", "Resultado": n(r1["productive_hours"])},
+                    {"Paso": "Ocupacion", "Resultado": p(r1["occupancy"])},
+                    {"Paso": "Horas transaccionales", "Resultado": n(r1["transactional_hours"])},
+                    {"Paso": "Llamadas atendidas", "Resultado": n(r1["answered_calls"])},
+                ]
+            )
+        )
 
-    with c2:
+    st.markdown("### Calculadora 2 - Horas Presentes y Programadas")
+    left, right = st.columns(2)
+    with left:
         ex2_table = editable_sheet(
-            "Ejercicio 2 - Entradas",
+            "Entradas",
             [
                 {"Campo": "Inbound AHT (seg)", "Valor": float(ex2["inbound_aht_sec"])},
                 {"Campo": "Llamadas", "Valor": float(ex2["calls"])},
@@ -126,59 +149,34 @@ with tab_ex:
         ex2["productive_hours_email"] = float(ex2_table.loc[5, "Valor"])
         ex2["vacations"] = float(ex2_table.loc[6, "Valor"]) / 100
         ex2["auxiliary_hours"] = float(ex2_table.loc[7, "Valor"])
-
-    st.markdown("#### Ejercicio 3 - Entradas por turno")
-    shifts_df = pd.DataFrame(ex3["shifts"])
-    edited_shifts = st.data_editor(shifts_df, num_rows="dynamic", use_container_width=True, key="ex3_sheet")
-    ex3["shifts"] = edited_shifts.to_dict(orient="records")
-
-    results = calculate_exercises(payload["exercises"])
-    r1 = results["exercise1"]
-    r2 = results["exercise2"]
-    r3 = results["exercise3"]
-
-    st.markdown("### Solucion Detallada")
-
-    st.markdown("#### Ejercicio 1 - Desarrollo")
-    st.info("Pregunta: Calcula el AHT del inbound (seg).")
-    st.table(
-        pd.DataFrame(
-            [
-                {"Paso": "Horas presentes", "Formula": "Scheduled * (1 - Ausentismo)", "Resultado": n(r1["attendance_hours"])},
-                {"Paso": "Horas productivas", "Formula": "Horas presentes * (1 - Auxiliares)", "Resultado": n(r1["productive_hours"])},
-                {"Paso": "Ocupacion", "Formula": "1 - Inbound availtime", "Resultado": p(r1["occupancy"])},
-                {"Paso": "Horas transaccionales", "Formula": "Horas productivas * Ocupacion", "Resultado": n(r1["transactional_hours"])},
-                {"Paso": "Llamadas atendidas", "Formula": "Llamadas * NDA", "Resultado": n(r1["answered_calls"])},
-                {"Paso": "AHT inbound (seg)", "Formula": "(Horas transaccionales * 3600) / Llamadas atendidas", "Resultado": n(r1["inbound_aht_sec"])},
-            ]
+    with right:
+        results = calculate_exercises(payload["exercises"])
+        r2 = results["exercise2"]
+        st.metric("Horas presentes", n(r2["attended_hours"]))
+        st.metric("Horas programadas requeridas", n(r2["scheduled_hours"]))
+        st.table(
+            pd.DataFrame(
+                [
+                    {"Paso": "Llamadas atendidas", "Resultado": n(r2["answered_calls"])},
+                    {"Paso": "Horas transaccionales inbound", "Resultado": n(r2["inbound_transactional_hours"])},
+                    {"Paso": "Horas productivas inbound", "Resultado": n(r2["inbound_productive_hours"])},
+                    {"Paso": "Horas productivas totales", "Resultado": n(r2["total_productive_hours"])},
+                ]
+            )
         )
-    )
 
-    st.markdown("#### Ejercicio 2 - Desarrollo")
-    st.info("Pregunta: Calcula el total de horas presentes y horas programadas requeridas.")
-    st.table(
-        pd.DataFrame(
-            [
-                {"Paso": "Llamadas atendidas", "Formula": "Llamadas * NDA", "Resultado": n(r2["answered_calls"])},
-                {"Paso": "Horas transaccionales inbound", "Formula": "(Atendidas * AHT) / 3600", "Resultado": n(r2["inbound_transactional_hours"])},
-                {"Paso": "Horas productivas inbound", "Formula": "Horas transaccionales / Ocupacion", "Resultado": n(r2["inbound_productive_hours"])},
-                {"Paso": "Horas productivas totales", "Formula": "Inbound + BO + Email", "Resultado": n(r2["total_productive_hours"])},
-                {"Paso": "Horas presentes", "Formula": "Productivas totales + Auxiliares", "Resultado": n(r2["attended_hours"])},
-                {"Paso": "Horas programadas requeridas", "Formula": "Horas presentes / (1 - Vacaciones)", "Resultado": n(r2["scheduled_hours"])},
-            ]
-        )
-    )
-
-    st.markdown("#### Ejercicio 3 - AHT por turno y total")
-    st.info("Pregunta: Calcula el AHT por turno y el AHT global de todos los turnos.")
-    shifts_result_df = pd.DataFrame(r3["shifts"])
-    st.dataframe(shifts_result_df, use_container_width=True)
-    st.success(f"AHT global de turnos: {n(r3['global_aht_sec'])} seg")
-
-    if ex3.get("recommendations"):
-        st.markdown("#### Recomendaciones")
-        for rec in ex3["recommendations"]:
-            st.write(f"- {rec}")
+    st.markdown("### Calculadora 3 - AHT por Turno")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Entradas")
+        shifts_df = pd.DataFrame(ex3["shifts"])
+        edited_shifts = st.data_editor(shifts_df, num_rows="dynamic", use_container_width=True, key="ex3_sheet")
+        ex3["shifts"] = edited_shifts.to_dict(orient="records")
+    with right:
+        results = calculate_exercises(payload["exercises"])
+        r3 = results["exercise3"]
+        st.metric("AHT global de turnos (seg)", n(r3["global_aht_sec"]))
+        st.dataframe(pd.DataFrame(r3["shifts"]), use_container_width=True)
 
 with tab_dim:
     dim = payload["dimensioning"]
