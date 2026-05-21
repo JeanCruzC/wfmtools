@@ -73,6 +73,37 @@ def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
     return st.data_editor(df, use_container_width=True, hide_index=True, key=key)
 
 
+def style_deviation_table(df: pd.DataFrame, sla_col: str = "SLA", abandon_col: str = "Abandono"):
+    def color_sla(v):
+        try:
+            val = float(v)
+        except Exception:
+            return ""
+        if val < 0.7:
+            return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
+        if val < 0.8:
+            return "background-color:#78350f;color:#fef3c7;font-weight:700;"
+        return "background-color:#14532d;color:#dcfce7;font-weight:700;"
+
+    def color_ab(v):
+        try:
+            val = float(v)
+        except Exception:
+            return ""
+        if val > 0.12:
+            return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
+        if val > 0.08:
+            return "background-color:#78350f;color:#fef3c7;font-weight:700;"
+        return "background-color:#14532d;color:#dcfce7;font-weight:700;"
+
+    styler = df.style
+    if sla_col in df.columns:
+        styler = styler.map(color_sla, subset=[sla_col])
+    if abandon_col in df.columns:
+        styler = styler.map(color_ab, subset=[abandon_col])
+    return styler
+
+
 def case_study_kpis() -> dict:
     df = pd.read_csv(RECORDS_FILE)
     col_map = {norm_col(c): c for c in df.columns}
@@ -556,23 +587,37 @@ with tab_case:
 
     st.markdown("### Analisis por Mes")
     month_df = kpi["by_month"][["label", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"label": "Mes", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(month_df, use_container_width=True)
-    st.line_chart(kpi["by_month"].set_index("label")[["recibidas", "atendidas"]])
+    st.dataframe(style_deviation_table(month_df), use_container_width=True)
+    month_chart = kpi["by_month"].set_index("label")[["recibidas", "atendidas"]]
+    month_chart["sla_gap"] = (0.8 - kpi["by_month"].set_index("label")["sla"]).clip(lower=0)
+    st.line_chart(month_chart)
+    st.caption("Desvio SLA (sla_gap): cuanto falta para llegar al objetivo 80%.")
 
     st.markdown("### Analisis por Semana")
     week_df = kpi["by_week"][["semana", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(week_df, use_container_width=True)
-    st.line_chart(kpi["by_week"].set_index("semana")[["recibidas", "atendidas"]])
+    st.dataframe(style_deviation_table(week_df), use_container_width=True)
+    week_chart = kpi["by_week"].set_index("semana")[["recibidas", "atendidas"]]
+    week_chart["sla_gap"] = (0.8 - kpi["by_week"].set_index("semana")["sla"]).clip(lower=0)
+    week_chart["abandon_gap"] = (kpi["by_week"].set_index("semana")["abandon_rate"] - 0.08).clip(lower=0)
+    st.line_chart(week_chart)
+    st.caption("Desvios semanales: sla_gap (>0 indica SLA bajo objetivo), abandon_gap (>0 indica abandono sobre 8%).")
 
     st.markdown("### Analisis por Dia de Semana")
     day_df = kpi["by_day"][["dia", "recibidas", "atendidas", "abandonada", "sla", "abandon_rate"]].rename(columns={"dia": "Dia", "abandonada": "abandonadas", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(day_df, use_container_width=True)
-    st.bar_chart(kpi["by_day"].set_index("dia")[["recibidas", "atendidas"]])
+    st.dataframe(style_deviation_table(day_df), use_container_width=True)
+    day_chart = kpi["by_day"].set_index("dia")[["recibidas", "atendidas"]]
+    day_chart["sla_gap"] = (0.8 - kpi["by_day"].set_index("dia")["sla"]).clip(lower=0)
+    st.bar_chart(day_chart)
+    st.caption("Dias con mayor sla_gap requieren refuerzo de cobertura.")
 
     st.markdown("### Analisis por Franja Horaria")
     hour_df = kpi["by_hour"][["franja", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"franja": "Franja Horaria", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(hour_df, use_container_width=True)
-    st.area_chart(kpi["by_hour"].set_index("franja")[["recibidas", "atendidas"]])
+    st.dataframe(style_deviation_table(hour_df), use_container_width=True)
+    hour_chart = kpi["by_hour"].set_index("franja")[["recibidas", "atendidas"]]
+    hour_chart["sla_gap"] = (0.8 - kpi["by_hour"].set_index("franja")["sla"]).clip(lower=0)
+    hour_chart["abandon_gap"] = (kpi["by_hour"].set_index("franja")["abandon_rate"] - 0.08).clip(lower=0)
+    st.area_chart(hour_chart)
+    st.caption("Franjas con mayor sla_gap y abandon_gap son prioridad de accion intradia.")
 
     st.markdown("### Recomendaciones Dinamicas")
     for i, rec in enumerate(kpi.get("dynamic_recommendations", []), start=1):
