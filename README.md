@@ -71,6 +71,26 @@ CORS_ORIGINS=*
 
 La app usa `/data/app.db` para guardar escenarios modificados y registros cargados.
 
+## Version alternativa en Streamlit
+
+Si quieres montar una version rapida en Streamlit (sin frontend React), usa:
+
+```bash
+pip install -r requirements-streamlit.txt -r backend/requirements.txt
+streamlit run streamlit_app.py --server.port 8501
+```
+
+La app reutiliza los mismos calculos de:
+
+- `backend/app/calculations.py`
+
+Para desplegar en Streamlit Cloud:
+
+1. Repo: este mismo.
+2. Main file path: `streamlit_app.py`.
+3. Python version: 3.12 (recomendado).
+4. Dependencias: `requirements-streamlit.txt` y `backend/requirements.txt` (puedes unificarlas en un solo `requirements.txt` si prefieres).
+
 ## Estructura esperada para importar registros
 
 Acepta CSV o XLSX con encabezados equivalentes a:
