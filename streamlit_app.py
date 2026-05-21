@@ -73,34 +73,24 @@ def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
     return st.data_editor(df, use_container_width=True, hide_index=True, key=key)
 
 
-def style_deviation_table(df: pd.DataFrame, sla_col: str = "SLA", abandon_col: str = "Abandono"):
-    def color_sla(v):
+def style_gap_table(df: pd.DataFrame, sla_gap_col: str = "Desvio SLA", ab_gap_col: str = "Exceso Abandono"):
+    def color_gap(v):
         try:
-            val = float(v)
+            txt = str(v).replace("%", "").strip()
+            val = float(txt)
         except Exception:
             return ""
-        if val < 0.7:
+        if val >= 15:
             return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
-        if val < 0.8:
+        if val > 0:
             return "background-color:#78350f;color:#fef3c7;font-weight:700;"
-        return "background-color:#14532d;color:#dcfce7;font-weight:700;"
-
-    def color_ab(v):
-        try:
-            val = float(v)
-        except Exception:
-            return ""
-        if val > 0.12:
-            return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
-        if val > 0.08:
-            return "background-color:#78350f;color:#fef3c7;font-weight:700;"
-        return "background-color:#14532d;color:#dcfce7;font-weight:700;"
+        return ""
 
     styler = df.style
-    if sla_col in df.columns:
-        styler = styler.map(color_sla, subset=[sla_col])
-    if abandon_col in df.columns:
-        styler = styler.map(color_ab, subset=[abandon_col])
+    if sla_gap_col in df.columns:
+        styler = styler.map(color_gap, subset=[sla_gap_col])
+    if ab_gap_col in df.columns:
+        styler = styler.map(color_gap, subset=[ab_gap_col])
     return styler
 
 
@@ -600,6 +590,12 @@ with tab_case:
         )
 
     st.markdown("### Desvios Criticos del Servicio")
+    month_issues = kpi["by_month"].copy()
+    month_issues["sla_gap"] = (0.8 - month_issues["sla"]).clip(lower=0)
+    month_issues["abandon_gap"] = (month_issues["abandon_rate"] - 0.08).clip(lower=0)
+    month_issues["impact_score"] = month_issues["sla_gap"] * 100 + month_issues["abandon_gap"] * 100
+    month_issues = month_issues[(month_issues["sla_gap"] > 0) | (month_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+
     week_issues = kpi["by_week"].copy()
     week_issues["sla_gap"] = (0.8 - week_issues["sla"]).clip(lower=0)
     week_issues["abandon_gap"] = (week_issues["abandon_rate"] - 0.08).clip(lower=0)
@@ -636,9 +632,19 @@ with tab_case:
     ).copy()
     for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         week_view[c] = week_view[c].apply(p)
-    st.dataframe(style_deviation_table(week_view), use_container_width=True)
+    st.dataframe(style_gap_table(week_view), use_container_width=True)
     if not week_issues.empty:
         st.line_chart(week_issues.set_index("semana")[["sla_gap", "abandon_gap"]])
+
+    st.markdown("#### Meses con problemas")
+    month_view = month_issues[["label", "sla", "abandon_rate", "sla_gap", "abandon_gap"]].rename(
+        columns={"label": "Mes", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Exceso Abandono"}
+    ).copy()
+    for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
+        month_view[c] = month_view[c].apply(p)
+    st.dataframe(style_gap_table(month_view), use_container_width=True)
+    if not month_issues.empty:
+        st.bar_chart(month_issues.set_index("label")[["sla_gap", "abandon_gap"]])
 
     st.markdown("#### Dias con problemas")
     day_view = day_issues[["dia", "sla", "abandon_rate", "sla_gap", "abandon_gap"]].rename(
@@ -646,7 +652,7 @@ with tab_case:
     ).copy()
     for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         day_view[c] = day_view[c].apply(p)
-    st.dataframe(style_deviation_table(day_view), use_container_width=True)
+    st.dataframe(style_gap_table(day_view), use_container_width=True)
     if not day_issues.empty:
         st.bar_chart(day_issues.set_index("dia")[["sla_gap", "abandon_gap"]])
 
@@ -656,7 +662,7 @@ with tab_case:
     ).copy()
     for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         hour_view[c] = hour_view[c].apply(p)
-    st.dataframe(style_deviation_table(hour_view), use_container_width=True)
+    st.dataframe(style_gap_table(hour_view), use_container_width=True)
     if not hour_issues.empty:
         st.area_chart(hour_issues.set_index("franja")[["sla_gap", "abandon_gap"]])
 
