@@ -311,38 +311,34 @@ with tab_ex:
 
 with tab_dim:
     dim = payload["dimensioning"]
+    st.markdown("### Calculadora 4 - Dimensionado Diario")
     dim_table = editable_sheet(
-        "Supuestos de Dimensionado",
+        "Entradas del caso",
         [
-            {"Campo": "Llamadas semanales (Weekly Calls)", "Valor": float(dim["weekly_calls"])},
-            {"Campo": "AHT (sec)", "Valor": float(dim["aht_sec"])},
-            {"Campo": "Ausentismo (Absenteeism %)", "Valor": float(dim["absenteeism"]) * 100},
-            {"Campo": "Auxiliares (Auxiliaries %)", "Valor": float(dim["auxiliaries"]) * 100},
-            {"Campo": "Ocupacion objetivo (Target Occupancy %)", "Valor": float(dim["occupancy_target"]) * 100},
-            {"Campo": "SLA tiempo (SLA Time sec)", "Valor": float(dim["sla_time_sec"])},
-            {"Campo": "SLA nivel (SLA Level %)", "Valor": float(dim["sla_level"]) * 100},
-            {"Campo": "Horas FT/sem (FT Hours/Week)", "Valor": float(dim["ft_hours_week"])},
-            {"Campo": "Horas PT/sem (PT Hours/Week)", "Valor": float(dim["pt_hours_week"])},
-            {"Campo": "Ratio PT (Part-Time Ratio %)", "Valor": float(dim["part_time_ratio"]) * 100},
+            {"Campo": "Total de llamadas semanal (Weekly Calls)", "Valor": float(dim["weekly_calls"])},
         ],
         "dim_sheet",
     )
-
     dim["weekly_calls"] = float(dim_table.loc[0, "Valor"])
-    dim["aht_sec"] = float(dim_table.loc[1, "Valor"])
-    dim["absenteeism"] = float(dim_table.loc[2, "Valor"]) / 100
-    dim["auxiliaries"] = float(dim_table.loc[3, "Valor"]) / 100
-    dim["occupancy_target"] = float(dim_table.loc[4, "Valor"]) / 100
-    dim["sla_time_sec"] = float(dim_table.loc[5, "Valor"])
-    dim["sla_level"] = float(dim_table.loc[6, "Valor"]) / 100
-    dim["ft_hours_week"] = float(dim_table.loc[7, "Valor"])
-    dim["pt_hours_week"] = float(dim_table.loc[8, "Valor"])
-    dim["part_time_ratio"] = float(dim_table.loc[9, "Valor"]) / 100
 
     st.markdown("#### Distribucion diaria")
     days_df = pd.DataFrame(dim["days"])
     edited_days = st.data_editor(days_df, num_rows="dynamic", use_container_width=True, key="days_sheet")
     dim["days"] = edited_days.to_dict(orient="records")
+
+    st.markdown("#### Premisas fijas de calculo")
+    st.table(
+        pd.DataFrame(
+            [
+                {"Premisa": "AHT (sec)", "Valor": dim["aht_sec"]},
+                {"Premisa": "Ausentismo (%)", "Valor": f"{dim['absenteeism'] * 100:.2f}%"},
+                {"Premisa": "Auxiliares (%)", "Valor": f"{dim['auxiliaries'] * 100:.2f}%"},
+                {"Premisa": "Ocupacion objetivo (%)", "Valor": f"{dim['occupancy_target'] * 100:.2f}%"},
+                {"Premisa": "SLA", "Valor": f"{int(dim['sla_level']*100)}/{int(dim['sla_time_sec'])}"},
+                {"Premisa": "Horas FT/PT", "Valor": f"{dim['ft_hours_week']}/{dim['pt_hours_week']}"},
+            ]
+        )
+    )
 
     dim_result = calculate_dimensioning(dim)
     st.markdown("### Resultado detallado por dia")
