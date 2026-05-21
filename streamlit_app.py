@@ -532,24 +532,25 @@ with tab_case:
     st.markdown(
         """
         <style>
-        [data-testid="stMetricValue"] {font-size: 1.05rem !important; line-height: 1.1 !important;}
-        [data-testid="stMetricLabel"] {font-size: 0.78rem !important;}
-        div[data-testid="stMetric"] {padding: 6px 8px !important;}
+        [data-testid="stMetricValue"] {font-size: 0.92rem !important; line-height: 1.0 !important;}
+        [data-testid="stMetricLabel"] {font-size: 0.70rem !important;}
+        div[data-testid="stMetric"] {padding: 2px 4px !important; margin-bottom: 2px !important;}
         </style>
         """,
         unsafe_allow_html=True,
     )
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Recibidas", f"{g['recibidas']:,.0f}")
-    c2.metric("Atendidas", f"{g['atendidas']:,.0f}")
-    c3.metric("Abandonadas", f"{g['abandonadas']:,.0f}")
-    c4.metric("Dentro SLA", f"{(g['sla']*g['atendidas']):,.0f}")
-    c5.metric("Answer Rate", p(g["atendidas"] / g["recibidas"] if g["recibidas"] else 0))
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Abandono", p(g["abandono"]))
-    c2.metric("SLA", p(g["sla"]))
-    c3.metric("AHT (seg)", n(g["aht"]))
-    c4.metric("ASA (seg)", n(g["asa"]))
+    left, right = st.columns(2)
+    with left:
+        st.metric("Llamadas Recibidas", f"{g['recibidas']:,.0f}")
+        st.metric("Llamadas Atendidas", f"{g['atendidas']:,.0f}")
+        st.metric("Llamadas Abandonadas", f"{g['abandonadas']:,.0f}")
+        st.metric("Atendidas dentro SLA", f"{(g['sla']*g['atendidas']):,.0f}")
+        st.metric("Answer Rate", p(g["atendidas"] / g["recibidas"] if g["recibidas"] else 0))
+    with right:
+        st.metric("Tasa de Abandono", p(g["abandono"]))
+        st.metric("Nivel de Servicio (SLA)", p(g["sla"]))
+        st.metric("AHT Ponderado (seg)", n(g["aht"]))
+        st.metric("ASA (seg)", n(g["asa"]))
 
     st.markdown("### Alertas y Desviaciones")
     a1, a2 = st.columns([1, 3])
