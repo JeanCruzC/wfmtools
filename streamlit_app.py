@@ -174,6 +174,37 @@ def case_study_kpis() -> dict:
     if not alerts:
         alerts.append("Indicadores globales en rango esperado.")
 
+    # Desviaciones clave para priorizacion visual
+    by_week_dev = by_week.copy()
+    by_week_dev["sla_gap"] = 0.8 - by_week_dev["sla"]
+    by_week_dev["aband_gap"] = by_week_dev["abandon_rate"] - 0.08
+    by_week_dev["risk_score"] = by_week_dev["sla_gap"].clip(lower=0) * 100 + by_week_dev["aband_gap"].clip(lower=0) * 100
+    worst_week = by_week_dev.sort_values("risk_score", ascending=False).iloc[0].to_dict() if not by_week_dev.empty else {}
+
+    by_hour_dev = hour_kpi.copy()
+    by_hour_dev["sla_gap"] = 0.8 - by_hour_dev["sla"]
+    by_hour_dev["aband_gap"] = by_hour_dev["abandon_rate"] - 0.08
+    by_hour_dev["risk_score"] = by_hour_dev["sla_gap"].clip(lower=0) * 100 + by_hour_dev["aband_gap"].clip(lower=0) * 100
+    worst_hour = by_hour_dev.sort_values("risk_score", ascending=False).iloc[0].to_dict() if not by_hour_dev.empty else {}
+
+    by_day_dev = by_day_named.copy()
+    by_day_dev["sla_gap"] = 0.8 - by_day_dev["sla"]
+    by_day_dev["aband_gap"] = by_day_dev["abandon_rate"] - 0.08
+    by_day_dev["risk_score"] = by_day_dev["sla_gap"].clip(lower=0) * 100 + by_day_dev["aband_gap"].clip(lower=0) * 100
+    worst_day = by_day_dev.sort_values("risk_score", ascending=False).iloc[0].to_dict() if not by_day_dev.empty else {}
+
+    dynamic_recs = []
+    if global_kpi["sla"] < 0.8:
+        dynamic_recs.append("Incrementar cobertura intradia en ventanas con SLA bajo y reforzar ruteo prioritario.")
+    if global_kpi["abandono"] > 0.08:
+        dynamic_recs.append("Activar plan antiabandono: callback, overflow y redistribucion de breaks en picos.")
+    if mape > 0.2:
+        dynamic_recs.append("Mejorar forecasting: usar ajuste semanal + estacionalidad para reducir error de demanda.")
+    if worst_hour and worst_hour.get("risk_score", 0) > 0:
+        dynamic_recs.append(f"Aplicar accion inmediata en franja {int(worst_hour['hora']):02d}:00: micro-shifts y skill rebalancing.")
+    if not dynamic_recs:
+        dynamic_recs.append("Operacion estable: mantener monitoreo en tiempo real y revisiones semanales.")
+
     return {
         "global": global_kpi,
         "critical_day": critical_day,
@@ -184,6 +215,10 @@ def case_study_kpis() -> dict:
         "by_hour": hour_kpi,
         "mape_weekly_calls": mape,
         "alerts": alerts,
+        "worst_week": worst_week,
+        "worst_day": worst_day,
+        "worst_hour": worst_hour,
+        "dynamic_recommendations": dynamic_recs,
     }
 
 
@@ -379,10 +414,12 @@ with tab_dim:
         "Entradas del caso",
         [
             {"Campo": "Total de llamadas semanal (Weekly Calls)", "Valor": float(dim["weekly_calls"])},
+            {"Campo": "% Part-Time a contratar (Part-Time Ratio %)", "Valor": float(dim["part_time_ratio"]) * 100},
         ],
         "dim_sheet",
     )
     dim["weekly_calls"] = float(dim_table.loc[0, "Valor"])
+    dim["part_time_ratio"] = float(dim_table.loc[1, "Valor"]) / 100
 
     st.markdown("#### Distribucion diaria")
     days_df = pd.DataFrame(dim["days"])
@@ -439,6 +476,19 @@ with tab_dim:
     st.table(pd.DataFrame([solo, mix]))
 
 with tab_case:
+    st.markdown(
+        """
+        <style>
+        .risk-card {border-radius:14px;padding:12px 14px;background:linear-gradient(135deg,#0f172a,#1e293b);color:#e2e8f0;border:1px solid #334155;}
+        .risk-title {font-size:12px;opacity:.85;text-transform:uppercase;letter-spacing:.06em;}
+        .risk-value {font-size:20px;font-weight:800;margin-top:4px;}
+        .risk-chip-high {display:inline-block;padding:4px 8px;border-radius:999px;background:#7f1d1d;color:#fecaca;font-weight:700;font-size:12px;}
+        .risk-chip-med {display:inline-block;padding:4px 8px;border-radius:999px;background:#78350f;color:#fde68a;font-weight:700;font-size:12px;}
+        .risk-chip-low {display:inline-block;padding:4px 8px;border-radius:999px;background:#14532d;color:#bbf7d0;font-weight:700;font-size:12px;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("### Caso de Estudio Operativo")
     st.write(
         "Analiza indicadores de gestion de llamadas, explica la situacion actual del servicio "
@@ -465,6 +515,45 @@ with tab_case:
     for alert in kpi["alerts"]:
         st.warning(alert)
 
+    def risk_chip(score: float) -> str:
+        if score >= 20:
+            return '<span class="risk-chip-high">Riesgo Alto</span>'
+        if score >= 8:
+            return '<span class="risk-chip-med">Riesgo Medio</span>'
+        return '<span class="risk-chip-low">Riesgo Bajo</span>'
+
+    wweek = kpi.get("worst_week", {})
+    wday = kpi.get("worst_day", {})
+    whour = kpi.get("worst_hour", {})
+
+    st.markdown("### Radar de Desviaciones Criticas")
+    rc1, rc2, rc3 = st.columns(3)
+    with rc1:
+        score = float(wweek.get("risk_score", 0) or 0)
+        st.markdown(
+            f"""<div class="risk-card"><div class="risk-title">Semana con mayor desviacion</div>
+            <div class="risk-value">{wweek.get('semana', 'N/A')}</div>{risk_chip(score)}
+            <div style="margin-top:8px;font-size:12px;">Score: {score:.2f}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with rc2:
+        score = float(wday.get("risk_score", 0) or 0)
+        st.markdown(
+            f"""<div class="risk-card"><div class="risk-title">Dia mas critico</div>
+            <div class="risk-value">{wday.get('dia', 'N/A')}</div>{risk_chip(score)}
+            <div style="margin-top:8px;font-size:12px;">Score: {score:.2f}</div></div>""",
+            unsafe_allow_html=True,
+        )
+    with rc3:
+        score = float(whour.get("risk_score", 0) or 0)
+        hour_label = f"{int(whour.get('hora', 0)):02d}:00" if whour else "N/A"
+        st.markdown(
+            f"""<div class="risk-card"><div class="risk-title">Franja critica</div>
+            <div class="risk-value">{hour_label}</div>{risk_chip(score)}
+            <div style="margin-top:8px;font-size:12px;">Score: {score:.2f}</div></div>""",
+            unsafe_allow_html=True,
+        )
+
     st.markdown("### Analisis por Mes")
     month_df = kpi["by_month"][["label", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"label": "Mes", "sla": "SLA", "abandon_rate": "Abandono"})
     st.dataframe(month_df, use_container_width=True)
@@ -484,5 +573,9 @@ with tab_case:
     hour_df = kpi["by_hour"][["franja", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"franja": "Franja Horaria", "sla": "SLA", "abandon_rate": "Abandono"})
     st.dataframe(hour_df, use_container_width=True)
     st.area_chart(kpi["by_hour"].set_index("franja")[["recibidas", "atendidas"]])
+
+    st.markdown("### Recomendaciones Dinamicas")
+    for i, rec in enumerate(kpi.get("dynamic_recommendations", []), start=1):
+        st.write(f"{i}. {rec}")
 
 st.session_state.payload = payload
