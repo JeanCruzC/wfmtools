@@ -10,20 +10,63 @@ import streamlit as st
 from backend.app.calculations import calculate_dimensioning, calculate_exercises
 
 DATA_FILE = Path(__file__).resolve().parent / "data" / "example_inputs.json"
+RECORDS_FILE = Path(__file__).resolve().parent / "data" / "sample_records.csv"
 
 
 def load_defaults() -> dict:
     return json.loads(DATA_FILE.read_text(encoding="utf-8"))
 
 
-def pct_input(label: str, value: float, key: str) -> float:
-    pct_value = st.number_input(label, min_value=0.0, max_value=100.0, value=float(value) * 100, key=key)
-    return pct_value / 100.0
+def p(value: float) -> str:
+    return f"{value * 100:.2f}%"
+
+
+def n(value: float) -> str:
+    return f"{value:,.3f}"
+
+
+def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
+    st.markdown(f"#### {title}")
+    df = pd.DataFrame(rows)
+    return st.data_editor(df, use_container_width=True, hide_index=True, key=key)
+
+
+def case_study_kpis() -> dict:
+    df = pd.read_csv(RECORDS_FILE)
+    received = float(df["Recibidas"].sum())
+    answered = float(df["Atendidas"].sum())
+    abandoned = float(df["abandonada"].sum())
+    sla_ans = float(df["Atendidas dentro de SLA"].sum())
+    weighted_aht = float((df["AHT_Seg"] * df["Atendidas"]).sum())
+    weighted_tme = float((df["TME_Seg"] * df["Atendidas"]).sum())
+
+    global_kpi = {
+        "recibidas": received,
+        "atendidas": answered,
+        "abandonadas": abandoned,
+        "sla": (sla_ans / answered) if answered else 0.0,
+        "abandono": (abandoned / received) if received else 0.0,
+        "aht": (weighted_aht / answered) if answered else 0.0,
+        "asa": (weighted_tme / answered) if answered else 0.0,
+    }
+
+    by_day = (
+        df.groupby("DiaSem", as_index=False)
+        .agg({"Recibidas": "sum", "Atendidas": "sum", "abandonada": "sum", "Atendidas dentro de SLA": "sum"})
+        .rename(columns={"Atendidas dentro de SLA": "sla_ans"})
+    )
+    by_day["sla"] = by_day["sla_ans"] / by_day["Atendidas"].replace(0, 1)
+    critical_day = by_day.sort_values("sla").iloc[0].to_dict()
+
+    by_hour = df.groupby("hora", as_index=False).agg({"Recibidas": "sum"}).sort_values("Recibidas", ascending=False)
+    peak_hour = by_hour.iloc[0].to_dict()
+
+    return {"global": global_kpi, "critical_day": critical_day, "peak_hour": peak_hour}
 
 
 st.set_page_config(page_title="WFM Planeamiento - Streamlit", layout="wide")
-st.title("WFM Planeamiento - Streamlit")
-st.caption("Version ligera para desplegar rapido en Streamlit usando los mismos calculos del proyecto.")
+st.title("WFM Planeamiento - Formato Tipo Excel")
+st.caption("Calculadoras de planeamiento WFM con entradas simples y solucion detallada.")
 
 if "payload" not in st.session_state:
     st.session_state.payload = load_defaults()
@@ -32,84 +75,180 @@ if st.button("Restaurar valores default"):
     st.session_state.payload = load_defaults()
 
 payload = deepcopy(st.session_state.payload)
-tab_ex, tab_dim = st.tabs(["Ejercicios", "Dimensionado"])
+tab_ex, tab_dim, tab_case = st.tabs(["Ejercicios", "Dimensionado", "Caso de Estudio"])
 
 with tab_ex:
-    st.subheader("Ejercicio 1")
     ex1 = payload["exercises"]["exercise1"]
-    c1, c2, c3 = st.columns(3)
-    ex1["scheduled_hours"] = c1.number_input("Scheduled hours", min_value=0.0, value=float(ex1["scheduled_hours"]))
-    ex1["calls"] = c2.number_input("Calls", min_value=0.0, value=float(ex1["calls"]))
-    ex1["nda"] = pct_input("NDA (%)", ex1["nda"], "ex1_nda")
-    ex1["absenteeism"] = pct_input("Absenteeism (%)", ex1["absenteeism"], "ex1_abs")
-    ex1["auxiliaries"] = pct_input("Auxiliaries (%)", ex1["auxiliaries"], "ex1_aux")
-    ex1["inbound_availtime"] = pct_input("Inbound availtime (%)", ex1["inbound_availtime"], "ex1_av")
-
-    st.subheader("Ejercicio 2")
     ex2 = payload["exercises"]["exercise2"]
-    c1, c2, c3 = st.columns(3)
-    ex2["inbound_aht_sec"] = c1.number_input("Inbound AHT (seg)", min_value=0.0, value=float(ex2["inbound_aht_sec"]))
-    ex2["calls"] = c2.number_input("Calls (E2)", min_value=0.0, value=float(ex2["calls"]))
-    ex2["nda"] = pct_input("NDA E2 (%)", ex2["nda"], "ex2_nda")
-    ex2["inbound_occupancy"] = pct_input("Inbound occupancy (%)", ex2["inbound_occupancy"], "ex2_occ")
-    ex2["productive_hours_backoffice"] = c3.number_input(
-        "Backoffice productive hours", min_value=0.0, value=float(ex2["productive_hours_backoffice"])
-    )
-    ex2["productive_hours_email"] = c1.number_input(
-        "Email productive hours", min_value=0.0, value=float(ex2["productive_hours_email"])
-    )
-    ex2["vacations"] = pct_input("Vacations (%)", ex2["vacations"], "ex2_vac")
-    ex2["auxiliary_hours"] = c2.number_input("Auxiliary hours", min_value=0.0, value=float(ex2["auxiliary_hours"]))
-
-    st.subheader("Ejercicio 3")
     ex3 = payload["exercises"]["exercise3"]
+
+    c1, c2 = st.columns(2)
+    with c1:
+        ex1_table = editable_sheet(
+            "Ejercicio 1 - Entradas",
+            [
+                {"Campo": "Horas Programadas", "Valor": float(ex1["scheduled_hours"])},
+                {"Campo": "Ausentismo (%)", "Valor": float(ex1["absenteeism"]) * 100},
+                {"Campo": "Auxiliares (%)", "Valor": float(ex1["auxiliaries"]) * 100},
+                {"Campo": "Inbound Availtime (%)", "Valor": float(ex1["inbound_availtime"]) * 100},
+                {"Campo": "NDA (%)", "Valor": float(ex1["nda"]) * 100},
+                {"Campo": "Llamadas", "Valor": float(ex1["calls"])},
+            ],
+            "ex1_sheet",
+        )
+        ex1["scheduled_hours"] = float(ex1_table.loc[0, "Valor"])
+        ex1["absenteeism"] = float(ex1_table.loc[1, "Valor"]) / 100
+        ex1["auxiliaries"] = float(ex1_table.loc[2, "Valor"]) / 100
+        ex1["inbound_availtime"] = float(ex1_table.loc[3, "Valor"]) / 100
+        ex1["nda"] = float(ex1_table.loc[4, "Valor"]) / 100
+        ex1["calls"] = float(ex1_table.loc[5, "Valor"])
+
+    with c2:
+        ex2_table = editable_sheet(
+            "Ejercicio 2 - Entradas",
+            [
+                {"Campo": "Inbound AHT (seg)", "Valor": float(ex2["inbound_aht_sec"])},
+                {"Campo": "Llamadas", "Valor": float(ex2["calls"])},
+                {"Campo": "NDA (%)", "Valor": float(ex2["nda"]) * 100},
+                {"Campo": "Ocupacion Inbound (%)", "Valor": float(ex2["inbound_occupancy"]) * 100},
+                {"Campo": "Hrs Productivas Back Office", "Valor": float(ex2["productive_hours_backoffice"])},
+                {"Campo": "Hrs Productivas Email", "Valor": float(ex2["productive_hours_email"])},
+                {"Campo": "Vacaciones (%)", "Valor": float(ex2["vacations"]) * 100},
+                {"Campo": "Auxiliares (hrs)", "Valor": float(ex2["auxiliary_hours"])},
+            ],
+            "ex2_sheet",
+        )
+        ex2["inbound_aht_sec"] = float(ex2_table.loc[0, "Valor"])
+        ex2["calls"] = float(ex2_table.loc[1, "Valor"])
+        ex2["nda"] = float(ex2_table.loc[2, "Valor"]) / 100
+        ex2["inbound_occupancy"] = float(ex2_table.loc[3, "Valor"]) / 100
+        ex2["productive_hours_backoffice"] = float(ex2_table.loc[4, "Valor"])
+        ex2["productive_hours_email"] = float(ex2_table.loc[5, "Valor"])
+        ex2["vacations"] = float(ex2_table.loc[6, "Valor"]) / 100
+        ex2["auxiliary_hours"] = float(ex2_table.loc[7, "Valor"])
+
+    st.markdown("#### Ejercicio 3 - Entradas por turno")
     shifts_df = pd.DataFrame(ex3["shifts"])
-    edited_shifts = st.data_editor(shifts_df, num_rows="dynamic", use_container_width=True)
+    edited_shifts = st.data_editor(shifts_df, num_rows="dynamic", use_container_width=True, key="ex3_sheet")
     ex3["shifts"] = edited_shifts.to_dict(orient="records")
 
-    exercises_result = calculate_exercises(payload["exercises"])
-    st.subheader("Resultados")
-    r1 = exercises_result["exercise1"]
-    r2 = exercises_result["exercise2"]
-    r3 = exercises_result["exercise3"]
+    results = calculate_exercises(payload["exercises"])
+    r1 = results["exercise1"]
+    r2 = results["exercise2"]
+    r3 = results["exercise3"]
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("AHT inbound (seg)", f"{r1['inbound_aht_sec']:.3f}")
-    k2.metric("Horas presentes", f"{r1['attendance_hours']:.3f}")
-    k3.metric("Horas programadas req.", f"{r2['scheduled_hours']:.3f}")
-    k4.metric("AHT global turnos (seg)", f"{r3['global_aht_sec']:.3f}")
+    st.markdown("### Solucion Detallada")
 
-    st.dataframe(pd.DataFrame(r3["shifts"]), use_container_width=True)
+    st.markdown("#### Ejercicio 1 - Desarrollo")
+    st.info("Pregunta: Calcula el AHT del inbound (seg).")
+    st.table(
+        pd.DataFrame(
+            [
+                {"Paso": "Horas presentes", "Formula": "Scheduled * (1 - Ausentismo)", "Resultado": n(r1["attendance_hours"])},
+                {"Paso": "Horas productivas", "Formula": "Horas presentes * (1 - Auxiliares)", "Resultado": n(r1["productive_hours"])},
+                {"Paso": "Ocupacion", "Formula": "1 - Inbound availtime", "Resultado": p(r1["occupancy"])},
+                {"Paso": "Horas transaccionales", "Formula": "Horas productivas * Ocupacion", "Resultado": n(r1["transactional_hours"])},
+                {"Paso": "Llamadas atendidas", "Formula": "Llamadas * NDA", "Resultado": n(r1["answered_calls"])},
+                {"Paso": "AHT inbound (seg)", "Formula": "(Horas transaccionales * 3600) / Llamadas atendidas", "Resultado": n(r1["inbound_aht_sec"])},
+            ]
+        )
+    )
+
+    st.markdown("#### Ejercicio 2 - Desarrollo")
+    st.info("Pregunta: Calcula el total de horas presentes y horas programadas requeridas.")
+    st.table(
+        pd.DataFrame(
+            [
+                {"Paso": "Llamadas atendidas", "Formula": "Llamadas * NDA", "Resultado": n(r2["answered_calls"])},
+                {"Paso": "Horas transaccionales inbound", "Formula": "(Atendidas * AHT) / 3600", "Resultado": n(r2["inbound_transactional_hours"])},
+                {"Paso": "Horas productivas inbound", "Formula": "Horas transaccionales / Ocupacion", "Resultado": n(r2["inbound_productive_hours"])},
+                {"Paso": "Horas productivas totales", "Formula": "Inbound + BO + Email", "Resultado": n(r2["total_productive_hours"])},
+                {"Paso": "Horas presentes", "Formula": "Productivas totales + Auxiliares", "Resultado": n(r2["attended_hours"])},
+                {"Paso": "Horas programadas requeridas", "Formula": "Horas presentes / (1 - Vacaciones)", "Resultado": n(r2["scheduled_hours"])},
+            ]
+        )
+    )
+
+    st.markdown("#### Ejercicio 3 - AHT por turno y total")
+    st.info("Pregunta: Calcula el AHT por turno y el AHT global de todos los turnos.")
+    shifts_result_df = pd.DataFrame(r3["shifts"])
+    st.dataframe(shifts_result_df, use_container_width=True)
+    st.success(f"AHT global de turnos: {n(r3['global_aht_sec'])} seg")
+
+    if ex3.get("recommendations"):
+        st.markdown("#### Recomendaciones")
+        for rec in ex3["recommendations"]:
+            st.write(f"- {rec}")
 
 with tab_dim:
-    st.subheader("Supuestos de Dimensionado")
     dim = payload["dimensioning"]
-    c1, c2, c3 = st.columns(3)
-    dim["weekly_calls"] = c1.number_input("Weekly calls", min_value=0.0, value=float(dim["weekly_calls"]))
-    dim["aht_sec"] = c2.number_input("AHT (seg)", min_value=0.0, value=float(dim["aht_sec"]))
-    dim["occupancy_target"] = pct_input("Occupancy target (%)", dim["occupancy_target"], "dim_occ")
-    dim["absenteeism"] = pct_input("Absenteeism (%)", dim["absenteeism"], "dim_abs")
-    dim["auxiliaries"] = pct_input("Auxiliaries (%)", dim["auxiliaries"], "dim_aux")
-    dim["sla_level"] = pct_input("SLA level (%)", dim["sla_level"], "dim_sla")
-    dim["sla_time_sec"] = c3.number_input("SLA time (seg)", min_value=0.0, value=float(dim["sla_time_sec"]))
-    dim["part_time_ratio"] = pct_input("Part-time ratio (%)", dim["part_time_ratio"], "dim_pt")
-    dim["ft_hours_week"] = c1.number_input("FT hours/week", min_value=1.0, value=float(dim["ft_hours_week"]))
-    dim["pt_hours_week"] = c2.number_input("PT hours/week", min_value=1.0, value=float(dim["pt_hours_week"]))
+    dim_table = editable_sheet(
+        "Supuestos de Dimensionado",
+        [
+            {"Campo": "Llamadas semanales", "Valor": float(dim["weekly_calls"])},
+            {"Campo": "AHT (seg)", "Valor": float(dim["aht_sec"])},
+            {"Campo": "Ausentismo (%)", "Valor": float(dim["absenteeism"]) * 100},
+            {"Campo": "Auxiliares (%)", "Valor": float(dim["auxiliaries"]) * 100},
+            {"Campo": "Ocupacion objetivo (%)", "Valor": float(dim["occupancy_target"]) * 100},
+            {"Campo": "SLA tiempo (seg)", "Valor": float(dim["sla_time_sec"])},
+            {"Campo": "SLA nivel (%)", "Valor": float(dim["sla_level"]) * 100},
+            {"Campo": "Horas FT/sem", "Valor": float(dim["ft_hours_week"])},
+            {"Campo": "Horas PT/sem", "Valor": float(dim["pt_hours_week"])},
+            {"Campo": "Ratio PT (%)", "Valor": float(dim["part_time_ratio"]) * 100},
+        ],
+        "dim_sheet",
+    )
 
+    dim["weekly_calls"] = float(dim_table.loc[0, "Valor"])
+    dim["aht_sec"] = float(dim_table.loc[1, "Valor"])
+    dim["absenteeism"] = float(dim_table.loc[2, "Valor"]) / 100
+    dim["auxiliaries"] = float(dim_table.loc[3, "Valor"]) / 100
+    dim["occupancy_target"] = float(dim_table.loc[4, "Valor"]) / 100
+    dim["sla_time_sec"] = float(dim_table.loc[5, "Valor"])
+    dim["sla_level"] = float(dim_table.loc[6, "Valor"]) / 100
+    dim["ft_hours_week"] = float(dim_table.loc[7, "Valor"])
+    dim["pt_hours_week"] = float(dim_table.loc[8, "Valor"])
+    dim["part_time_ratio"] = float(dim_table.loc[9, "Valor"]) / 100
+
+    st.markdown("#### Distribucion diaria")
     days_df = pd.DataFrame(dim["days"])
-    edited_days = st.data_editor(days_df, num_rows="dynamic", use_container_width=True)
+    edited_days = st.data_editor(days_df, num_rows="dynamic", use_container_width=True, key="days_sheet")
     dim["days"] = edited_days.to_dict(orient="records")
 
     dim_result = calculate_dimensioning(dim)
-    rows_df = pd.DataFrame(dim_result["rows"])
-    st.subheader("Resultado diario")
-    st.dataframe(rows_df, use_container_width=True)
+    st.markdown("### Resultado detallado por dia")
+    st.info("Pregunta: Calcule agentes requeridos por dia (HC + shrinkage), FTE y modelo FT/PT.")
+    st.dataframe(pd.DataFrame(dim_result["rows"]), use_container_width=True)
 
-    mix = dim_result["contract_model"]["ft_pt_mix"]
+    st.markdown("### Modelo de contratacion")
+    st.table(pd.DataFrame([dim_result["contract_model"]["solo_ft"], dim_result["contract_model"]["ft_pt_mix"]]))
+
+with tab_case:
+    st.markdown("### Caso de Estudio Operativo")
+    st.write(
+        "Analiza indicadores de gestion de llamadas, explica la situacion actual del servicio "
+        "y propone sugerencias de optimizacion."
+    )
+
+    kpi = case_study_kpis()
+    g = kpi["global"]
+    st.markdown("### Resultado calculado con los datos operativos")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("HC pico req.", int(mix["hc_peak_required"]))
-    c2.metric("FT personas", int(mix["ft_people"]))
-    c3.metric("PT personas", int(mix["pt_people"]))
-    c4.metric("FTE total", f"{mix['fte_total']:.2f}")
+    c1.metric("SLA Global", p(g["sla"]))
+    c2.metric("Abandono Global", p(g["abandono"]))
+    c3.metric("AHT Ponderado (seg)", n(g["aht"]))
+    c4.metric("ASA (seg)", n(g["asa"]))
+
+    st.markdown("### Hallazgos automaticos")
+    st.write(f"- Dia critico por SLA (DiaSem): **{int(kpi['critical_day']['DiaSem'])}**")
+    st.write(f"- Hora pico por recibidas: **{int(kpi['peak_hour']['hora']):02d}:00**")
+    st.write("- Recomendacion: revisar cobertura por intervalo en horas pico y reforzar control de abandono/SLA.")
+
+    st.markdown("### Resumen interpretativo")
+    st.write(
+        "Al nivel global se identifica un SLA por debajo del objetivo 80/20. "
+        "Los dias criticos concentran mayor riesgo de abandono y menor SLA, por lo que se recomienda ajustar "
+        "dotacion y control operativo por intervalos."
+    )
 
 st.session_state.payload = payload
