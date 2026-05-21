@@ -80,10 +80,8 @@ def style_gap_table(df: pd.DataFrame, sla_gap_col: str = "Desvio SLA", ab_gap_co
             val = float(txt)
         except Exception:
             return ""
-        if val >= 15:
-            return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
         if val > 0:
-            return "background-color:#78350f;color:#fef3c7;font-weight:700;"
+            return "background-color:#7f1d1d;color:#fee2e2;font-weight:700;"
         return ""
 
     styler = df.style
@@ -594,25 +592,25 @@ with tab_case:
     month_issues["sla_gap"] = (0.8 - month_issues["sla"]).clip(lower=0)
     month_issues["abandon_gap"] = (month_issues["abandon_rate"] - 0.08).clip(lower=0)
     month_issues["impact_score"] = month_issues["sla_gap"] * 100 + month_issues["abandon_gap"] * 100
-    month_issues = month_issues[(month_issues["sla_gap"] > 0) | (month_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+    month_issues = month_issues[(month_issues["sla_gap"] >= 0.08) | (month_issues["abandon_gap"] >= 0.04)].sort_values("impact_score", ascending=False).head(5)
 
     week_issues = kpi["by_week"].copy()
     week_issues["sla_gap"] = (0.8 - week_issues["sla"]).clip(lower=0)
     week_issues["abandon_gap"] = (week_issues["abandon_rate"] - 0.08).clip(lower=0)
     week_issues["impact_score"] = week_issues["sla_gap"] * 100 + week_issues["abandon_gap"] * 100
-    week_issues = week_issues[(week_issues["sla_gap"] > 0) | (week_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+    week_issues = week_issues[(week_issues["sla_gap"] >= 0.10) | (week_issues["abandon_gap"] >= 0.05)].sort_values("impact_score", ascending=False).head(8)
 
     day_issues = kpi["by_day"].copy()
     day_issues["sla_gap"] = (0.8 - day_issues["sla"]).clip(lower=0)
     day_issues["abandon_gap"] = (day_issues["abandon_rate"] - 0.08).clip(lower=0)
     day_issues["impact_score"] = day_issues["sla_gap"] * 100 + day_issues["abandon_gap"] * 100
-    day_issues = day_issues[(day_issues["sla_gap"] > 0) | (day_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+    day_issues = day_issues[(day_issues["sla_gap"] >= 0.08) | (day_issues["abandon_gap"] >= 0.04)].sort_values("impact_score", ascending=False).head(7)
 
     hour_issues = kpi["by_hour"].copy()
     hour_issues["sla_gap"] = (0.8 - hour_issues["sla"]).clip(lower=0)
     hour_issues["abandon_gap"] = (hour_issues["abandon_rate"] - 0.08).clip(lower=0)
     hour_issues["impact_score"] = hour_issues["sla_gap"] * 100 + hour_issues["abandon_gap"] * 100
-    hour_issues = hour_issues[(hour_issues["sla_gap"] > 0) | (hour_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+    hour_issues = hour_issues[(hour_issues["sla_gap"] >= 0.10) | (hour_issues["abandon_gap"] >= 0.05)].sort_values("impact_score", ascending=False).head(12)
 
     st.markdown("#### Top desvíos que afectan el servicio")
     t1, t2, t3 = st.columns(3)
