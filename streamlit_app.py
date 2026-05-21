@@ -409,7 +409,34 @@ with tab_dim:
     st.dataframe(pd.DataFrame(dim_result["rows"]), use_container_width=True)
 
     st.markdown("### Modelo de contratacion")
-    st.table(pd.DataFrame([dim_result["contract_model"]["solo_ft"], dim_result["contract_model"]["ft_pt_mix"]]))
+    mix = dim_result["contract_model"]["ft_pt_mix"]
+    solo = dim_result["contract_model"]["solo_ft"]
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        render_result_box("HC pico requerido", f"{int(mix['hc_peak_required'])}")
+    with c2:
+        render_result_box("Part-Time Ratio", p(float(mix["part_time_ratio"])))
+    with c3:
+        render_result_box("FTE total (Mix FT/PT)", n(float(mix["fte_total"])))
+    with c4:
+        render_result_box("Ahorro FTE vs Solo FT", n(float(dim_result["contract_model"]["fte_saving"])))
+
+    st.markdown("#### Resumen de indicadores clave")
+    st.table(
+        pd.DataFrame(
+            [
+                {"Indicador": "Shrinkage", "Valor": p(dim_result["assumptions"]["shrinkage"] - 1)},
+                {"Indicador": "Ocupacion objetivo", "Valor": p(dim_result["assumptions"]["occupancy_target"])},
+                {"Indicador": "SLA objetivo", "Valor": f"{int(dim_result['assumptions']['sla_level']*100)}/{int(dim_result['assumptions']['sla_time_sec'])}"},
+                {"Indicador": "Part-Time Ratio", "Valor": p(float(mix["part_time_ratio"]))},
+                {"Indicador": "FTE Saving %", "Valor": p(float(dim_result["contract_model"]["fte_saving_pct"]))},
+                {"Indicador": "FT personas", "Valor": int(mix["ft_people"])},
+                {"Indicador": "PT personas", "Valor": int(mix["pt_people"])},
+                {"Indicador": "Total personas", "Valor": int(mix["total_people"])},
+            ]
+        )
+    )
+    st.table(pd.DataFrame([solo, mix]))
 
 with tab_case:
     st.markdown("### Caso de Estudio Operativo")
