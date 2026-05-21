@@ -64,6 +64,63 @@ def case_study_kpis() -> dict:
     return {"global": global_kpi, "critical_day": critical_day, "peak_hour": peak_hour}
 
 
+def render_result_box(title: str, value: str) -> None:
+    st.markdown(
+        f"""
+        <div style="border:2px solid #16a34a;padding:12px;border-radius:10px;background:#f0fdf4;">
+            <div style="font-size:12px;color:#166534;font-weight:600;">RESULTADO</div>
+            <div style="font-size:16px;color:#14532d;font-weight:700;">{title}: {value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def recs_ex1(r1: dict, ex1: dict) -> list[str]:
+    recs = []
+    if r1["inbound_aht_sec"] > 360:
+        recs.append("AHT alto: revisar tipificaciones y reducir tiempos de ACW.")
+    if ex1["inbound_availtime"] > 0.1:
+        recs.append("Availtime alto: redistribuir carga para subir ocupacion productiva.")
+    if ex1["nda"] < 0.9:
+        recs.append("NDA bajo: reforzar cobertura en horas pico y monitoreo intradia.")
+    if not recs:
+        recs.append("Resultado estable: mantener monitoreo y control por intervalos.")
+    return recs
+
+
+def recs_ex2(r2: dict, ex2: dict) -> list[str]:
+    recs = []
+    ratio = (r2["scheduled_hours"] / r2["attended_hours"]) if r2["attended_hours"] else 0
+    if ex2["vacations"] > 0.05:
+        recs.append("Vacaciones elevadas: planificar reemplazos para proteger horas programadas.")
+    if ratio > 1.08:
+        recs.append("Brecha alta entre horas presentes y programadas: ajustar mix FT/PT.")
+    if ex2["inbound_occupancy"] < 0.8:
+        recs.append("Ocupacion baja: revisar sobre-dotacion o reasignar tareas de soporte.")
+    if not recs:
+        recs.append("Estructura balanceada: continuar seguimiento semanal de capacidad.")
+    return recs
+
+
+def recs_ex3(r3: dict) -> list[str]:
+    recs = []
+    shifts = r3.get("shifts", [])
+    if not shifts:
+        return ["Sin turnos cargados para analizar."]
+    max_aht = max((float(s.get("aht_sec", 0)) for s in shifts), default=0)
+    min_aht = min((float(s.get("aht_sec", 0)) for s in shifts), default=0)
+    if max_aht > 420:
+        recs.append("Hay turnos con AHT alto: aplicar coaching focalizado por turno.")
+    if (max_aht - min_aht) > 120:
+        recs.append("Variacion alta entre turnos: estandarizar procesos y guiones.")
+    if float(r3.get("global_aht_sec", 0)) > 320:
+        recs.append("AHT global elevado: simplificar flujo operativo y tareas post-llamada.")
+    if not recs:
+        recs.append("Comportamiento estable entre turnos: mantener controles actuales.")
+    return recs
+
+
 st.set_page_config(page_title="WFM Planeamiento - Streamlit", layout="wide")
 st.title("WFM Planeamiento - Formato Tipo Excel")
 st.caption("Calculadoras de planeamiento WFM con entradas simples y solucion detallada.")
@@ -111,7 +168,7 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r1 = results["exercise1"]
-        st.metric("Resultado AHT Inbound (seg)", n(r1["inbound_aht_sec"]))
+        render_result_box("AHT Inbound (seg)", n(r1["inbound_aht_sec"]))
         st.table(
             pd.DataFrame(
                 [
@@ -123,6 +180,9 @@ with tab_ex:
                 ]
             )
         )
+        st.markdown("**Recomendaciones dinamicas**")
+        for rec in recs_ex1(r1, ex1):
+            st.write(f"- {rec}")
 
     st.markdown("### Calculadora 2 - Horas Presentes y Programadas")
     left, right = st.columns(2)
@@ -152,8 +212,8 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r2 = results["exercise2"]
-        st.metric("Horas presentes", n(r2["attended_hours"]))
-        st.metric("Horas programadas requeridas", n(r2["scheduled_hours"]))
+        render_result_box("Horas presentes", n(r2["attended_hours"]))
+        render_result_box("Horas programadas requeridas", n(r2["scheduled_hours"]))
         st.table(
             pd.DataFrame(
                 [
@@ -164,6 +224,9 @@ with tab_ex:
                 ]
             )
         )
+        st.markdown("**Recomendaciones dinamicas**")
+        for rec in recs_ex2(r2, ex2):
+            st.write(f"- {rec}")
 
     st.markdown("### Calculadora 3 - AHT por Turno")
     left, right = st.columns(2)
@@ -175,8 +238,11 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r3 = results["exercise3"]
-        st.metric("AHT global de turnos (seg)", n(r3["global_aht_sec"]))
+        render_result_box("AHT global de turnos (seg)", n(r3["global_aht_sec"]))
         st.dataframe(pd.DataFrame(r3["shifts"]), use_container_width=True)
+        st.markdown("**Recomendaciones dinamicas**")
+        for rec in recs_ex3(r3):
+            st.write(f"- {rec}")
 
 with tab_dim:
     dim = payload["dimensioning"]
