@@ -121,9 +121,9 @@ def recs_ex3(r3: dict) -> list[str]:
     return recs
 
 
-st.set_page_config(page_title="WFM Planeamiento - Streamlit", layout="wide")
-st.title("WFM Planeamiento - Formato Tipo Excel")
-st.caption("Calculadoras de planeamiento WFM con entradas simples y solucion detallada.")
+st.set_page_config(page_title="WFM Tools", layout="wide")
+st.title("WFM Tools")
+st.caption("Suite de calculadoras y analitica operativa para planificacion y gestion WFM.")
 
 if "payload" not in st.session_state:
     st.session_state.payload = load_defaults()
