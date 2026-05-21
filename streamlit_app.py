@@ -598,39 +598,54 @@ with tab_case:
             unsafe_allow_html=True,
         )
 
-    st.markdown("### Analisis por Mes")
-    month_df = kpi["by_month"][["label", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"label": "Mes", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(style_deviation_table(month_df), use_container_width=True)
-    month_chart = kpi["by_month"].set_index("label")[["recibidas", "atendidas"]]
-    month_chart["sla_gap"] = (0.8 - kpi["by_month"].set_index("label")["sla"]).clip(lower=0)
-    st.line_chart(month_chart)
-    st.caption("Desvio SLA (sla_gap): cuanto falta para llegar al objetivo 80%.")
+    st.markdown("### Desvios Criticos del Servicio")
+    week_issues = kpi["by_week"].copy()
+    week_issues["sla_gap"] = (0.8 - week_issues["sla"]).clip(lower=0)
+    week_issues["abandon_gap"] = (week_issues["abandon_rate"] - 0.08).clip(lower=0)
+    week_issues["risk_score"] = week_issues["sla_gap"] * 100 + week_issues["abandon_gap"] * 100
+    week_issues = week_issues[(week_issues["sla_gap"] > 0) | (week_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
 
-    st.markdown("### Analisis por Semana")
-    week_df = kpi["by_week"][["semana", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(style_deviation_table(week_df), use_container_width=True)
-    week_chart = kpi["by_week"].set_index("semana")[["recibidas", "atendidas"]]
-    week_chart["sla_gap"] = (0.8 - kpi["by_week"].set_index("semana")["sla"]).clip(lower=0)
-    week_chart["abandon_gap"] = (kpi["by_week"].set_index("semana")["abandon_rate"] - 0.08).clip(lower=0)
-    st.line_chart(week_chart)
-    st.caption("Desvios semanales: sla_gap (>0 indica SLA bajo objetivo), abandon_gap (>0 indica abandono sobre 8%).")
+    day_issues = kpi["by_day"].copy()
+    day_issues["sla_gap"] = (0.8 - day_issues["sla"]).clip(lower=0)
+    day_issues["abandon_gap"] = (day_issues["abandon_rate"] - 0.08).clip(lower=0)
+    day_issues["risk_score"] = day_issues["sla_gap"] * 100 + day_issues["abandon_gap"] * 100
+    day_issues = day_issues[(day_issues["sla_gap"] > 0) | (day_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
 
-    st.markdown("### Analisis por Dia de Semana")
-    day_df = kpi["by_day"][["dia", "recibidas", "atendidas", "abandonada", "sla", "abandon_rate"]].rename(columns={"dia": "Dia", "abandonada": "abandonadas", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(style_deviation_table(day_df), use_container_width=True)
-    day_chart = kpi["by_day"].set_index("dia")[["recibidas", "atendidas"]]
-    day_chart["sla_gap"] = (0.8 - kpi["by_day"].set_index("dia")["sla"]).clip(lower=0)
-    st.bar_chart(day_chart)
-    st.caption("Dias con mayor sla_gap requieren refuerzo de cobertura.")
+    hour_issues = kpi["by_hour"].copy()
+    hour_issues["sla_gap"] = (0.8 - hour_issues["sla"]).clip(lower=0)
+    hour_issues["abandon_gap"] = (hour_issues["abandon_rate"] - 0.08).clip(lower=0)
+    hour_issues["risk_score"] = hour_issues["sla_gap"] * 100 + hour_issues["abandon_gap"] * 100
+    hour_issues = hour_issues[(hour_issues["sla_gap"] > 0) | (hour_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
 
-    st.markdown("### Analisis por Franja Horaria")
-    hour_df = kpi["by_hour"][["franja", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"franja": "Franja Horaria", "sla": "SLA", "abandon_rate": "Abandono"})
-    st.dataframe(style_deviation_table(hour_df), use_container_width=True)
-    hour_chart = kpi["by_hour"].set_index("franja")[["recibidas", "atendidas"]]
-    hour_chart["sla_gap"] = (0.8 - kpi["by_hour"].set_index("franja")["sla"]).clip(lower=0)
-    hour_chart["abandon_gap"] = (kpi["by_hour"].set_index("franja")["abandon_rate"] - 0.08).clip(lower=0)
-    st.area_chart(hour_chart)
-    st.caption("Franjas con mayor sla_gap y abandon_gap son prioridad de accion intradia.")
+    st.markdown("#### Semanas con problemas")
+    week_view = week_issues[["semana", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
+        columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    ).copy()
+    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+        week_view[c] = week_view[c].apply(p)
+    st.dataframe(style_deviation_table(week_view), use_container_width=True)
+    if not week_issues.empty:
+        st.line_chart(week_issues.set_index("semana")[["sla_gap", "abandon_gap", "risk_score"]])
+
+    st.markdown("#### Dias con problemas")
+    day_view = day_issues[["dia", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
+        columns={"dia": "Dia", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    ).copy()
+    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+        day_view[c] = day_view[c].apply(p)
+    st.dataframe(style_deviation_table(day_view), use_container_width=True)
+    if not day_issues.empty:
+        st.bar_chart(day_issues.set_index("dia")[["sla_gap", "abandon_gap", "risk_score"]])
+
+    st.markdown("#### Franjas horarias con problemas")
+    hour_view = hour_issues[["franja", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
+        columns={"franja": "Franja", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    ).copy()
+    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+        hour_view[c] = hour_view[c].apply(p)
+    st.dataframe(style_deviation_table(hour_view), use_container_width=True)
+    if not hour_issues.empty:
+        st.area_chart(hour_issues.set_index("franja")[["sla_gap", "abandon_gap", "risk_score"]])
 
     st.markdown("### Recomendaciones Dinamicas")
     for i, rec in enumerate(kpi.get("dynamic_recommendations", []), start=1):
