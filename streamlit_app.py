@@ -529,20 +529,33 @@ with tab_case:
     kpi = case_study_kpis()
     g = kpi["global"]
     st.markdown("### KPIs Globales")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Llamadas Recibidas", f"{g['recibidas']:,.0f}")
-    c2.metric("Llamadas Atendidas", f"{g['atendidas']:,.0f}")
-    c3.metric("Llamadas Abandonadas", f"{g['abandonadas']:,.0f}")
-    c4.metric("Atendidas dentro SLA", f"{(g['sla']*g['atendidas']):,.0f}")
+    st.markdown(
+        """
+        <style>
+        [data-testid="stMetricValue"] {font-size: 1.05rem !important; line-height: 1.1 !important;}
+        [data-testid="stMetricLabel"] {font-size: 0.78rem !important;}
+        div[data-testid="stMetric"] {padding: 6px 8px !important;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Answer Rate", p(g["atendidas"] / g["recibidas"] if g["recibidas"] else 0))
-    c2.metric("Tasa de Abandono", p(g["abandono"]))
-    c3.metric("Nivel de Servicio (SLA)", p(g["sla"]))
-    c4.metric("AHT Ponderado (seg)", n(g["aht"]))
-    c5.metric("ASA (seg)", n(g["asa"]))
+    c1.metric("Recibidas", f"{g['recibidas']:,.0f}")
+    c2.metric("Atendidas", f"{g['atendidas']:,.0f}")
+    c3.metric("Abandonadas", f"{g['abandonadas']:,.0f}")
+    c4.metric("Dentro SLA", f"{(g['sla']*g['atendidas']):,.0f}")
+    c5.metric("Answer Rate", p(g["atendidas"] / g["recibidas"] if g["recibidas"] else 0))
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Abandono", p(g["abandono"]))
+    c2.metric("SLA", p(g["sla"]))
+    c3.metric("AHT (seg)", n(g["aht"]))
+    c4.metric("ASA (seg)", n(g["asa"]))
 
     st.markdown("### Alertas y Desviaciones")
-    st.metric("MAPE semanal de llamadas", p(kpi["mape_weekly_calls"]))
+    a1, a2 = st.columns([1, 3])
+    a1.metric("MAPE", p(kpi["mape_weekly_calls"]))
+    with a2:
+        st.caption("Error porcentual medio semanal de llamadas (variabilidad de demanda).")
     for alert in kpi["alerts"]:
         st.warning(alert)
 
