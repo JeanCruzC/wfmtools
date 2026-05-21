@@ -121,7 +121,70 @@ def case_study_kpis() -> dict:
     by_hour = df.groupby(c_hour, as_index=False).agg({c_received: "sum"}).rename(columns={c_hour: "hora", c_received: "Recibidas"}).sort_values("Recibidas", ascending=False)
     peak_hour = by_hour.iloc[0].to_dict()
 
-    return {"global": global_kpi, "critical_day": critical_day, "peak_hour": peak_hour}
+    month_map = {1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 5: "May", 6: "Jun", 7: "Jul", 8: "Ago", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"}
+    day_map = {1: "Lunes", 2: "Martes", 3: "Miercoles", 4: "Jueves", 5: "Viernes", 6: "Sabado", 7: "Domingo"}
+
+    by_month = (
+        df.groupby(col("mes"), as_index=False)
+        .agg({c_received: "sum", c_answered: "sum", c_abandoned: "sum", c_sla: "sum"})
+        .rename(columns={c_received: "recibidas", c_answered: "atendidas", c_abandoned: "abandonadas", c_sla: "atendidas_sla"})
+    )
+    by_month["answer_rate"] = by_month["atendidas"] / by_month["recibidas"].replace(0, 1)
+    by_month["abandon_rate"] = by_month["abandonadas"] / by_month["recibidas"].replace(0, 1)
+    by_month["sla"] = by_month["atendidas_sla"] / by_month["atendidas"].replace(0, 1)
+    by_month["label"] = by_month[col("mes")].astype(str).apply(lambda x: f"{month_map.get(int(x[4:6]), x[4:6])}-{x[2:4]}")
+
+    by_week = (
+        df.groupby(col("semana"), as_index=False)
+        .agg({c_received: "sum", c_answered: "sum", c_abandoned: "sum", c_sla: "sum"})
+        .rename(columns={col("semana"): "semana", c_received: "recibidas", c_answered: "atendidas", c_abandoned: "abandonadas", c_sla: "atendidas_sla"})
+    )
+    by_week["sem_num"] = by_week["semana"].astype(str).str.extract(r"(\d+)").astype(float).fillna(0)
+    by_week = by_week.sort_values("sem_num")
+    by_week["answer_rate"] = by_week["atendidas"] / by_week["recibidas"].replace(0, 1)
+    by_week["abandon_rate"] = by_week["abandonadas"] / by_week["recibidas"].replace(0, 1)
+    by_week["sla"] = by_week["atendidas_sla"] / by_week["atendidas"].replace(0, 1)
+    by_week["forecast_prev"] = by_week["recibidas"].shift(1)
+    mape_df = by_week.dropna(subset=["forecast_prev"]).copy()
+    mape = float(((mape_df["recibidas"] - mape_df["forecast_prev"]).abs() / mape_df["recibidas"].replace(0, 1)).mean()) if not mape_df.empty else 0.0
+
+    by_day_named = by_day.copy()
+    by_day_named["dia"] = by_day_named["DiaSem"].map(day_map).fillna(by_day_named["DiaSem"].astype(str))
+    by_day_named["answer_rate"] = by_day_named["atendidas"] / by_day_named["recibidas"].replace(0, 1)
+    by_day_named["abandon_rate"] = by_day_named["abandonada"] / by_day_named["recibidas"].replace(0, 1)
+
+    hour_kpi = (
+        df.groupby(c_hour, as_index=False)
+        .agg({c_received: "sum", c_answered: "sum", c_abandoned: "sum", c_sla: "sum"})
+        .rename(columns={c_hour: "hora", c_received: "recibidas", c_answered: "atendidas", c_abandoned: "abandonadas", c_sla: "atendidas_sla"})
+        .sort_values("hora")
+    )
+    hour_kpi["answer_rate"] = hour_kpi["atendidas"] / hour_kpi["recibidas"].replace(0, 1)
+    hour_kpi["abandon_rate"] = hour_kpi["abandonadas"] / hour_kpi["recibidas"].replace(0, 1)
+    hour_kpi["sla"] = hour_kpi["atendidas_sla"] / hour_kpi["atendidas"].replace(0, 1)
+    hour_kpi["franja"] = hour_kpi["hora"].astype(int).astype(str).str.zfill(2) + ":00"
+
+    alerts = []
+    if global_kpi["sla"] < 0.8:
+        alerts.append("SLA global por debajo del objetivo 80/20.")
+    if global_kpi["abandono"] > 0.08:
+        alerts.append("Tasa de abandono alta a nivel global (>8%).")
+    if mape > 0.2:
+        alerts.append("Alta variabilidad semanal de demanda (MAPE > 20%).")
+    if not alerts:
+        alerts.append("Indicadores globales en rango esperado.")
+
+    return {
+        "global": global_kpi,
+        "critical_day": critical_day,
+        "peak_hour": peak_hour,
+        "by_month": by_month,
+        "by_week": by_week,
+        "by_day": by_day_named,
+        "by_hour": hour_kpi,
+        "mape_weekly_calls": mape,
+        "alerts": alerts,
+    }
 
 
 def render_result_box(title: str, value: str) -> None:
@@ -357,23 +420,42 @@ with tab_case:
 
     kpi = case_study_kpis()
     g = kpi["global"]
-    st.markdown("### Resultado calculado con los datos operativos")
+    st.markdown("### KPIs Globales")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("SLA Global", p(g["sla"]))
-    c2.metric("Abandono Global", p(g["abandono"]))
-    c3.metric("AHT Ponderado (seg)", n(g["aht"]))
-    c4.metric("ASA (seg)", n(g["asa"]))
+    c1.metric("Llamadas Recibidas", f"{g['recibidas']:,.0f}")
+    c2.metric("Llamadas Atendidas", f"{g['atendidas']:,.0f}")
+    c3.metric("Llamadas Abandonadas", f"{g['abandonadas']:,.0f}")
+    c4.metric("Atendidas dentro SLA", f"{(g['sla']*g['atendidas']):,.0f}")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Answer Rate", p(g["atendidas"] / g["recibidas"] if g["recibidas"] else 0))
+    c2.metric("Tasa de Abandono", p(g["abandono"]))
+    c3.metric("Nivel de Servicio (SLA)", p(g["sla"]))
+    c4.metric("AHT Ponderado (seg)", n(g["aht"]))
+    c5.metric("ASA (seg)", n(g["asa"]))
 
-    st.markdown("### Hallazgos automaticos")
-    st.write(f"- Dia critico por SLA (DiaSem): **{int(kpi['critical_day']['DiaSem'])}**")
-    st.write(f"- Hora pico por recibidas: **{int(kpi['peak_hour']['hora']):02d}:00**")
-    st.write("- Recomendacion: revisar cobertura por intervalo en horas pico y reforzar control de abandono/SLA.")
+    st.markdown("### Alertas y Desviaciones")
+    st.metric("MAPE semanal de llamadas", p(kpi["mape_weekly_calls"]))
+    for alert in kpi["alerts"]:
+        st.warning(alert)
 
-    st.markdown("### Resumen interpretativo")
-    st.write(
-        "Al nivel global se identifica un SLA por debajo del objetivo 80/20. "
-        "Los dias criticos concentran mayor riesgo de abandono y menor SLA, por lo que se recomienda ajustar "
-        "dotacion y control operativo por intervalos."
-    )
+    st.markdown("### Analisis por Mes")
+    month_df = kpi["by_month"][["label", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"label": "Mes", "sla": "SLA", "abandon_rate": "Abandono"})
+    st.dataframe(month_df, use_container_width=True)
+    st.line_chart(kpi["by_month"].set_index("label")[["recibidas", "atendidas"]])
+
+    st.markdown("### Analisis por Semana")
+    week_df = kpi["by_week"][["semana", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono"})
+    st.dataframe(week_df, use_container_width=True)
+    st.line_chart(kpi["by_week"].set_index("semana")[["recibidas", "atendidas"]])
+
+    st.markdown("### Analisis por Dia de Semana")
+    day_df = kpi["by_day"][["dia", "recibidas", "atendidas", "abandonada", "sla", "abandon_rate"]].rename(columns={"dia": "Dia", "abandonada": "abandonadas", "sla": "SLA", "abandon_rate": "Abandono"})
+    st.dataframe(day_df, use_container_width=True)
+    st.bar_chart(kpi["by_day"].set_index("dia")[["recibidas", "atendidas"]])
+
+    st.markdown("### Analisis por Franja Horaria")
+    hour_df = kpi["by_hour"][["franja", "recibidas", "atendidas", "abandonadas", "sla", "abandon_rate"]].rename(columns={"franja": "Franja Horaria", "sla": "SLA", "abandon_rate": "Abandono"})
+    st.dataframe(hour_df, use_container_width=True)
+    st.area_chart(kpi["by_hour"].set_index("franja")[["recibidas", "atendidas"]])
 
 st.session_state.payload = payload
