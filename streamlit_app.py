@@ -74,13 +74,25 @@ def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
     return st.data_editor(df, use_container_width=True, hide_index=True, key=key)
 
 
-def style_critical_only(df: pd.DataFrame, sla_col: str = "SLA", abandon_col: str = "Tasa Abnd", top_n: int = 3):
+def style_critical_only(df: pd.DataFrame, sla_col: str = "SLA", abandon_col: str = "Tasa Abnd"):
     if df.empty:
         return df.style
     sla_vals = pd.to_numeric(df[sla_col].astype(str).str.replace("%", "", regex=False), errors="coerce")
     abd_vals = pd.to_numeric(df[abandon_col].astype(str).str.replace("%", "", regex=False), errors="coerce")
-    worst_sla_idx = set(sla_vals.nsmallest(min(top_n, len(sla_vals.dropna()))).index.tolist())
-    worst_abd_idx = set(abd_vals.nlargest(min(top_n, len(abd_vals.dropna()))).index.tolist())
+
+    # Regla robusta por dispersión (IQR) + umbral operativo.
+    # SLA crítico: cae significativamente por debajo de su distribución y además < 80%.
+    # Abandono crítico: sube significativamente por encima de su distribución y además > 8%.
+    sla_q1, sla_q3 = sla_vals.quantile(0.25), sla_vals.quantile(0.75)
+    abd_q1, abd_q3 = abd_vals.quantile(0.25), abd_vals.quantile(0.75)
+    sla_iqr = sla_q3 - sla_q1
+    abd_iqr = abd_q3 - abd_q1
+
+    sla_floor = min(80.0, float(sla_q1 - 0.75 * sla_iqr))
+    abd_ceiling = max(8.0, float(abd_q3 + 0.75 * abd_iqr))
+
+    worst_sla_idx = set(sla_vals[sla_vals <= sla_floor].index.tolist())
+    worst_abd_idx = set(abd_vals[abd_vals >= abd_ceiling].index.tolist())
 
     def mark_sla(v, row_idx):
         return "background-color:#facc15;color:#111827;font-weight:700;" if row_idx in worst_sla_idx else ""
