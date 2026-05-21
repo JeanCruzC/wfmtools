@@ -124,6 +124,10 @@ def recs_ex3(r3: dict) -> list[str]:
 st.set_page_config(page_title="WFM Tools", layout="wide")
 st.title("WFM Tools")
 st.caption("Suite de calculadoras y analitica operativa para planificacion y gestion WFM.")
+st.info(
+    "Estas calculadoras te permiten estimar rapidamente AHT, horas requeridas, capacidad por turnos y "
+    "dimensionamiento diario. Con los resultados puedes tomar decisiones de staffing, cobertura y eficiencia operativa."
+)
 
 if "payload" not in st.session_state:
     st.session_state.payload = load_defaults()
@@ -150,12 +154,12 @@ with tab_ex:
         ex1_table = editable_sheet(
             "Entradas",
             [
-                {"Campo": "Horas Programadas", "Valor": float(ex1["scheduled_hours"])},
-                {"Campo": "Ausentismo (%)", "Valor": float(ex1["absenteeism"]) * 100},
-                {"Campo": "Auxiliares (%)", "Valor": float(ex1["auxiliaries"]) * 100},
-                {"Campo": "Inbound Availtime (%)", "Valor": float(ex1["inbound_availtime"]) * 100},
-                {"Campo": "NDA (%)", "Valor": float(ex1["nda"]) * 100},
-                {"Campo": "Llamadas", "Valor": float(ex1["calls"])},
+                {"Campo": "Horas Programadas (Scheduled Hours)", "Valor": float(ex1["scheduled_hours"])},
+                {"Campo": "Ausentismo (Absenteeism %)", "Valor": float(ex1["absenteeism"]) * 100},
+                {"Campo": "Auxiliares (Auxiliaries %)", "Valor": float(ex1["auxiliaries"]) * 100},
+                {"Campo": "Tiempo Disponible Inbound (Inbound Availtime %)", "Valor": float(ex1["inbound_availtime"]) * 100},
+                {"Campo": "Nivel de Atencion (NDA %)", "Valor": float(ex1["nda"]) * 100},
+                {"Campo": "Llamadas (Calls)", "Valor": float(ex1["calls"])},
             ],
             "ex1_sheet",
         )
@@ -168,7 +172,7 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r1 = results["exercise1"]
-        render_result_box("AHT Inbound (seg)", n(r1["inbound_aht_sec"]))
+        render_result_box("AHT Inbound (sec)", n(r1["inbound_aht_sec"]))
         st.table(
             pd.DataFrame(
                 [
@@ -191,13 +195,13 @@ with tab_ex:
             "Entradas",
             [
                 {"Campo": "Inbound AHT (seg)", "Valor": float(ex2["inbound_aht_sec"])},
-                {"Campo": "Llamadas", "Valor": float(ex2["calls"])},
-                {"Campo": "NDA (%)", "Valor": float(ex2["nda"]) * 100},
-                {"Campo": "Ocupacion Inbound (%)", "Valor": float(ex2["inbound_occupancy"]) * 100},
-                {"Campo": "Hrs Productivas Back Office", "Valor": float(ex2["productive_hours_backoffice"])},
-                {"Campo": "Hrs Productivas Email", "Valor": float(ex2["productive_hours_email"])},
-                {"Campo": "Vacaciones (%)", "Valor": float(ex2["vacations"]) * 100},
-                {"Campo": "Auxiliares (hrs)", "Valor": float(ex2["auxiliary_hours"])},
+                {"Campo": "Llamadas (Calls)", "Valor": float(ex2["calls"])},
+                {"Campo": "Nivel de Atencion (NDA %)", "Valor": float(ex2["nda"]) * 100},
+                {"Campo": "Ocupacion Inbound (Inbound Occupancy %)", "Valor": float(ex2["inbound_occupancy"]) * 100},
+                {"Campo": "Horas Productivas Back Office (Backoffice Productive Hours)", "Valor": float(ex2["productive_hours_backoffice"])},
+                {"Campo": "Horas Productivas Email (Email Productive Hours)", "Valor": float(ex2["productive_hours_email"])},
+                {"Campo": "Vacaciones (Vacations %)", "Valor": float(ex2["vacations"]) * 100},
+                {"Campo": "Horas Auxiliares (Auxiliary Hours)", "Valor": float(ex2["auxiliary_hours"])},
             ],
             "ex2_sheet",
         )
@@ -212,8 +216,8 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r2 = results["exercise2"]
-        render_result_box("Horas presentes", n(r2["attended_hours"]))
-        render_result_box("Horas programadas requeridas", n(r2["scheduled_hours"]))
+        render_result_box("Horas presentes (Attendance Hours)", n(r2["attended_hours"]))
+        render_result_box("Horas programadas requeridas (Required Scheduled Hours)", n(r2["scheduled_hours"]))
         st.table(
             pd.DataFrame(
                 [
@@ -238,7 +242,7 @@ with tab_ex:
     with right:
         results = calculate_exercises(payload["exercises"])
         r3 = results["exercise3"]
-        render_result_box("AHT global de turnos (seg)", n(r3["global_aht_sec"]))
+        render_result_box("AHT global de turnos (Global Shift AHT sec)", n(r3["global_aht_sec"]))
         st.dataframe(pd.DataFrame(r3["shifts"]), use_container_width=True)
         st.markdown("**Recomendaciones dinamicas**")
         for rec in recs_ex3(r3):
@@ -249,16 +253,16 @@ with tab_dim:
     dim_table = editable_sheet(
         "Supuestos de Dimensionado",
         [
-            {"Campo": "Llamadas semanales", "Valor": float(dim["weekly_calls"])},
-            {"Campo": "AHT (seg)", "Valor": float(dim["aht_sec"])},
-            {"Campo": "Ausentismo (%)", "Valor": float(dim["absenteeism"]) * 100},
-            {"Campo": "Auxiliares (%)", "Valor": float(dim["auxiliaries"]) * 100},
-            {"Campo": "Ocupacion objetivo (%)", "Valor": float(dim["occupancy_target"]) * 100},
-            {"Campo": "SLA tiempo (seg)", "Valor": float(dim["sla_time_sec"])},
-            {"Campo": "SLA nivel (%)", "Valor": float(dim["sla_level"]) * 100},
-            {"Campo": "Horas FT/sem", "Valor": float(dim["ft_hours_week"])},
-            {"Campo": "Horas PT/sem", "Valor": float(dim["pt_hours_week"])},
-            {"Campo": "Ratio PT (%)", "Valor": float(dim["part_time_ratio"]) * 100},
+            {"Campo": "Llamadas semanales (Weekly Calls)", "Valor": float(dim["weekly_calls"])},
+            {"Campo": "AHT (sec)", "Valor": float(dim["aht_sec"])},
+            {"Campo": "Ausentismo (Absenteeism %)", "Valor": float(dim["absenteeism"]) * 100},
+            {"Campo": "Auxiliares (Auxiliaries %)", "Valor": float(dim["auxiliaries"]) * 100},
+            {"Campo": "Ocupacion objetivo (Target Occupancy %)", "Valor": float(dim["occupancy_target"]) * 100},
+            {"Campo": "SLA tiempo (SLA Time sec)", "Valor": float(dim["sla_time_sec"])},
+            {"Campo": "SLA nivel (SLA Level %)", "Valor": float(dim["sla_level"]) * 100},
+            {"Campo": "Horas FT/sem (FT Hours/Week)", "Valor": float(dim["ft_hours_week"])},
+            {"Campo": "Horas PT/sem (PT Hours/Week)", "Valor": float(dim["pt_hours_week"])},
+            {"Campo": "Ratio PT (Part-Time Ratio %)", "Valor": float(dim["part_time_ratio"]) * 100},
         ],
         "dim_sheet",
     )
