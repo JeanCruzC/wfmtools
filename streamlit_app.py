@@ -603,50 +603,62 @@ with tab_case:
     week_issues = kpi["by_week"].copy()
     week_issues["sla_gap"] = (0.8 - week_issues["sla"]).clip(lower=0)
     week_issues["abandon_gap"] = (week_issues["abandon_rate"] - 0.08).clip(lower=0)
-    week_issues["risk_score"] = week_issues["sla_gap"] * 100 + week_issues["abandon_gap"] * 100
-    week_issues = week_issues[(week_issues["sla_gap"] > 0) | (week_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
+    week_issues["impact_score"] = week_issues["sla_gap"] * 100 + week_issues["abandon_gap"] * 100
+    week_issues = week_issues[(week_issues["sla_gap"] > 0) | (week_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
 
     day_issues = kpi["by_day"].copy()
     day_issues["sla_gap"] = (0.8 - day_issues["sla"]).clip(lower=0)
     day_issues["abandon_gap"] = (day_issues["abandon_rate"] - 0.08).clip(lower=0)
-    day_issues["risk_score"] = day_issues["sla_gap"] * 100 + day_issues["abandon_gap"] * 100
-    day_issues = day_issues[(day_issues["sla_gap"] > 0) | (day_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
+    day_issues["impact_score"] = day_issues["sla_gap"] * 100 + day_issues["abandon_gap"] * 100
+    day_issues = day_issues[(day_issues["sla_gap"] > 0) | (day_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
 
     hour_issues = kpi["by_hour"].copy()
     hour_issues["sla_gap"] = (0.8 - hour_issues["sla"]).clip(lower=0)
     hour_issues["abandon_gap"] = (hour_issues["abandon_rate"] - 0.08).clip(lower=0)
-    hour_issues["risk_score"] = hour_issues["sla_gap"] * 100 + hour_issues["abandon_gap"] * 100
-    hour_issues = hour_issues[(hour_issues["sla_gap"] > 0) | (hour_issues["abandon_gap"] > 0)].sort_values("risk_score", ascending=False)
+    hour_issues["impact_score"] = hour_issues["sla_gap"] * 100 + hour_issues["abandon_gap"] * 100
+    hour_issues = hour_issues[(hour_issues["sla_gap"] > 0) | (hour_issues["abandon_gap"] > 0)].sort_values("impact_score", ascending=False)
+
+    st.markdown("#### Top desvíos que afectan el servicio")
+    t1, t2, t3 = st.columns(3)
+    if not week_issues.empty:
+        w = week_issues.iloc[0]
+        t1.error(f"Semana crítica: {w['semana']} | Desvío SLA: {p(w['sla_gap'])} | Exceso Abandono: {p(w['abandon_gap'])}")
+    if not day_issues.empty:
+        d = day_issues.iloc[0]
+        t2.error(f"Día crítico: {d['dia']} | Desvío SLA: {p(d['sla_gap'])} | Exceso Abandono: {p(d['abandon_gap'])}")
+    if not hour_issues.empty:
+        h = hour_issues.iloc[0]
+        t3.error(f"Franja crítica: {h['franja']} | Desvío SLA: {p(h['sla_gap'])} | Exceso Abandono: {p(h['abandon_gap'])}")
 
     st.markdown("#### Semanas con problemas")
-    week_view = week_issues[["semana", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
-        columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    week_view = week_issues[["semana", "sla", "abandon_rate", "sla_gap", "abandon_gap"]].rename(
+        columns={"semana": "Semana", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Exceso Abandono"}
     ).copy()
-    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+    for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         week_view[c] = week_view[c].apply(p)
     st.dataframe(style_deviation_table(week_view), use_container_width=True)
     if not week_issues.empty:
-        st.line_chart(week_issues.set_index("semana")[["sla_gap", "abandon_gap", "risk_score"]])
+        st.line_chart(week_issues.set_index("semana")[["sla_gap", "abandon_gap"]])
 
     st.markdown("#### Dias con problemas")
-    day_view = day_issues[["dia", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
-        columns={"dia": "Dia", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    day_view = day_issues[["dia", "sla", "abandon_rate", "sla_gap", "abandon_gap"]].rename(
+        columns={"dia": "Dia", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Exceso Abandono"}
     ).copy()
-    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+    for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         day_view[c] = day_view[c].apply(p)
     st.dataframe(style_deviation_table(day_view), use_container_width=True)
     if not day_issues.empty:
-        st.bar_chart(day_issues.set_index("dia")[["sla_gap", "abandon_gap", "risk_score"]])
+        st.bar_chart(day_issues.set_index("dia")[["sla_gap", "abandon_gap"]])
 
     st.markdown("#### Franjas horarias con problemas")
-    hour_view = hour_issues[["franja", "sla", "abandon_rate", "sla_gap", "abandon_gap", "risk_score"]].rename(
-        columns={"franja": "Franja", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Desvio Abandono", "risk_score": "Riesgo"}
+    hour_view = hour_issues[["franja", "sla", "abandon_rate", "sla_gap", "abandon_gap"]].rename(
+        columns={"franja": "Franja", "sla": "SLA", "abandon_rate": "Abandono", "sla_gap": "Desvio SLA", "abandon_gap": "Exceso Abandono"}
     ).copy()
-    for c in ["SLA", "Abandono", "Desvio SLA", "Desvio Abandono"]:
+    for c in ["SLA", "Abandono", "Desvio SLA", "Exceso Abandono"]:
         hour_view[c] = hour_view[c].apply(p)
     st.dataframe(style_deviation_table(hour_view), use_container_width=True)
     if not hour_issues.empty:
-        st.area_chart(hour_issues.set_index("franja")[["sla_gap", "abandon_gap", "risk_score"]])
+        st.area_chart(hour_issues.set_index("franja")[["sla_gap", "abandon_gap"]])
 
     st.markdown("### Recomendaciones Dinamicas")
     for i, rec in enumerate(kpi.get("dynamic_recommendations", []), start=1):
