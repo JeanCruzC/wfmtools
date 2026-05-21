@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from copy import deepcopy
 from pathlib import Path
 
@@ -57,6 +59,14 @@ def sanitize_shifts(rows: list[dict]) -> list[dict]:
     return cleaned
 
 
+def norm_col(name: object) -> str:
+    text = "" if name is None else str(name)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = text.strip().lower()
+    text = re.sub(r"[\s_\-\.]+", "", text)
+    return text
+
+
 def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
     st.markdown(f"#### {title}")
     df = pd.DataFrame(rows)
@@ -65,12 +75,30 @@ def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
 
 def case_study_kpis() -> dict:
     df = pd.read_csv(RECORDS_FILE)
-    received = float(df["Recibidas"].sum())
-    answered = float(df["Atendidas"].sum())
-    abandoned = float(df["abandonada"].sum())
-    sla_ans = float(df["Atendidas dentro de SLA"].sum())
-    weighted_aht = float((df["AHT_Seg"] * df["Atendidas"]).sum())
-    weighted_tme = float((df["TME_Seg"] * df["Atendidas"]).sum())
+    col_map = {norm_col(c): c for c in df.columns}
+
+    def col(*aliases: str) -> str:
+        for a in aliases:
+            key = norm_col(a)
+            if key in col_map:
+                return col_map[key]
+        raise KeyError(f"No se encontro ninguna columna para aliases={aliases}")
+
+    c_received = col("Recibidas")
+    c_answered = col("Atendidas")
+    c_abandoned = col("abandonada", "abandonadas")
+    c_sla = col("Atendidas dentro de SLA", "atendidas_sla")
+    c_aht = col("AHT_Seg", "aht")
+    c_tme = col("TME_Seg", "asa")
+    c_day = col("DiaSem", "dia_sem")
+    c_hour = col("hora")
+
+    received = float(df[c_received].sum())
+    answered = float(df[c_answered].sum())
+    abandoned = float(df[c_abandoned].sum())
+    sla_ans = float(df[c_sla].sum())
+    weighted_aht = float((df[c_aht] * df[c_answered]).sum())
+    weighted_tme = float((df[c_tme] * df[c_answered]).sum())
 
     global_kpi = {
         "recibidas": received,
@@ -83,14 +111,14 @@ def case_study_kpis() -> dict:
     }
 
     by_day = (
-        df.groupby("DiaSem", as_index=False)
-        .agg({"Recibidas": "sum", "Atendidas": "sum", "abandonada": "sum", "Atendidas dentro de SLA": "sum"})
-        .rename(columns={"Atendidas dentro de SLA": "sla_ans"})
+        df.groupby(c_day, as_index=False)
+        .agg({c_received: "sum", c_answered: "sum", c_abandoned: "sum", c_sla: "sum"})
+        .rename(columns={c_sla: "sla_ans", c_received: "recibidas", c_answered: "atendidas", c_abandoned: "abandonada", c_day: "DiaSem"})
     )
-    by_day["sla"] = by_day["sla_ans"] / by_day["Atendidas"].replace(0, 1)
+    by_day["sla"] = by_day["sla_ans"] / by_day["atendidas"].replace(0, 1)
     critical_day = by_day.sort_values("sla").iloc[0].to_dict()
 
-    by_hour = df.groupby("hora", as_index=False).agg({"Recibidas": "sum"}).sort_values("Recibidas", ascending=False)
+    by_hour = df.groupby(c_hour, as_index=False).agg({c_received: "sum"}).rename(columns={c_hour: "hora", c_received: "Recibidas"}).sort_values("Recibidas", ascending=False)
     peak_hour = by_hour.iloc[0].to_dict()
 
     return {"global": global_kpi, "critical_day": critical_day, "peak_hour": peak_hour}
@@ -174,6 +202,7 @@ with tab_ex:
     ex1 = payload["exercises"]["exercise1"]
     ex2 = payload["exercises"]["exercise2"]
     ex3 = payload["exercises"]["exercise3"]
+    ex3["shifts"] = sanitize_shifts(ex3.get("shifts", []))
 
     results = calculate_exercises(payload["exercises"])
     r1 = results["exercise1"]
