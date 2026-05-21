@@ -1,0 +1,121 @@
+{
+  "exercises": {
+    "exercise1": {
+      "scheduled_hours": 5000,
+      "absenteeism": 0.075,
+      "auxiliaries": 0.148,
+      "inbound_availtime": 0.07,
+      "nda": 0.92,
+      "nds": 0.9,
+      "calls": 40000
+    },
+    "exercise2": {
+      "inbound_aht_sec": 200,
+      "calls": 15000,
+      "nda": 0.975,
+      "inbound_occupancy": 0.9,
+      "productive_hours_backoffice": 1500,
+      "productive_hours_email": 350,
+      "vacations": 0.03,
+      "auxiliary_hours": 870
+    },
+    "exercise3": {
+      "shifts": [
+        {
+          "shift": "Turno 1",
+          "answered_calls": 2931,
+          "talk_minutes": 11845.6,
+          "acw_minutes": 1917.03,
+          "agents": 47,
+          "logged_hours": 376
+        },
+        {
+          "shift": "Turno 2",
+          "answered_calls": 3251,
+          "talk_minutes": 9163.71,
+          "acw_minutes": 4237.2,
+          "agents": 42,
+          "logged_hours": 336
+        },
+        {
+          "shift": "Turno 3",
+          "answered_calls": 1618,
+          "talk_minutes": 11612.47,
+          "acw_minutes": 2663.87,
+          "agents": 48,
+          "logged_hours": 384
+        },
+        {
+          "shift": "Turno 4",
+          "answered_calls": 3831,
+          "talk_minutes": 14670.95,
+          "acw_minutes": 2726.52,
+          "agents": 67,
+          "logged_hours": 536
+        },
+        {
+          "shift": "Turno 5",
+          "answered_calls": 2762,
+          "talk_minutes": 11459.68,
+          "acw_minutes": 1945.82,
+          "agents": 48,
+          "logged_hours": 384
+        }
+      ],
+      "recommendations": [
+        "Simplificar tipificaciones o trabajo de ACW, escalar con operaciones/calidad para mejoras de comportamiento y ajustar límites de ACW si la herramienta lo permite.",
+        "Controlar tiempos excesivos de gestión, revisar excedentes de in-office, evaluar staffing por intervalo y mover recursos hacia inbound.",
+        "Monitorear en tiempo real los indicadores para detectar desviaciones atípicas frente a lo planificado."
+      ]
+    }
+  },
+  "dimensioning": {
+    "weekly_calls": 99687,
+    "absenteeism": 0.06,
+    "auxiliaries": 0.101,
+    "aht_sec": 389,
+    "ft_hours_week": 45,
+    "pt_hours_week": 24,
+    "occupancy_target": 0.85,
+    "sla_time_sec": 20,
+    "sla_level": 0.8,
+    "part_time_ratio": 0.3,
+    "days": [
+      {
+        "day": "Lunes",
+        "traffic_pct": 0.21,
+        "operating_hours": 12
+      },
+      {
+        "day": "Martes",
+        "traffic_pct": 0.2,
+        "operating_hours": 12
+      },
+      {
+        "day": "Miércoles",
+        "traffic_pct": 0.18,
+        "operating_hours": 12
+      },
+      {
+        "day": "Jueves",
+        "traffic_pct": 0.17,
+        "operating_hours": 12
+      },
+      {
+        "day": "Viernes",
+        "traffic_pct": 0.13,
+        "operating_hours": 12
+      },
+      {
+        "day": "Sábado",
+        "traffic_pct": 0.11,
+        "operating_hours": 9
+      },
+      {
+        "day": "Domingo",
+        "traffic_pct": 0.0,
+        "operating_hours": 0
+      }
+    ]
+  }
+}

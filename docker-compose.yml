@@ -1,0 +1,12 @@
+services:
+  planeamiento-wfm:
+    build: .
+    container_name: planeamiento-wfm
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_PATH: /data/app.db
+      CORS_ORIGINS: "*"
+    volumes:
+      - ./coolify-data:/data
+    restart: unless-stopped
