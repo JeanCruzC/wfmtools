@@ -25,6 +25,38 @@ def n(value: float) -> str:
     return f"{value:,.3f}"
 
 
+def to_num(value: object, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    text = str(value).strip()
+    if text == "" or text.lower() == "nan":
+        return default
+    text = text.replace(",", "")
+    try:
+        return float(text)
+    except Exception:
+        return default
+
+
+def sanitize_shifts(rows: list[dict]) -> list[dict]:
+    cleaned = []
+    for idx, row in enumerate(rows):
+        if not isinstance(row, dict):
+            continue
+        shift_name = str(row.get("shift", f"Turno {idx + 1}")).strip() or f"Turno {idx + 1}"
+        cleaned.append(
+            {
+                "shift": shift_name,
+                "answered_calls": to_num(row.get("answered_calls"), 0.0),
+                "talk_minutes": to_num(row.get("talk_minutes"), 0.0),
+                "acw_minutes": to_num(row.get("acw_minutes"), 0.0),
+                "agents": to_num(row.get("agents"), 0.0),
+                "logged_hours": to_num(row.get("logged_hours"), 0.0),
+            }
+        )
+    return cleaned
+
+
 def editable_sheet(title: str, rows: list[dict], key: str) -> pd.DataFrame:
     st.markdown(f"#### {title}")
     df = pd.DataFrame(rows)
@@ -238,7 +270,7 @@ with tab_ex:
         st.markdown("#### Entradas")
         shifts_df = pd.DataFrame(ex3["shifts"])
         edited_shifts = st.data_editor(shifts_df, num_rows="dynamic", use_container_width=True, key="ex3_sheet")
-        ex3["shifts"] = edited_shifts.to_dict(orient="records")
+        ex3["shifts"] = sanitize_shifts(edited_shifts.to_dict(orient="records"))
     with right:
         results = calculate_exercises(payload["exercises"])
         r3 = results["exercise3"]
